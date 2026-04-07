@@ -18,7 +18,13 @@ function tutorialStepFor(player, room){
   const at = player.nodeId;
   const moveStep = (title, why, wrong, doNow, allowedNodes)=>({
     label: TUTORIAL_ROOM_LABELS[room.key],
-    title, why, wrong, doNow, allowedNodes, allowedActions:[]
+    title,
+    why,
+    wrong,
+    doNow,
+    targetNodes: allowedNodes,
+    allowedNodes: tutorialMoveTargets(player, room, allowedNodes),
+    allowedActions:[]
   });
   const actionStep = (title, why, wrong, doNow, allowedActions)=>({
     label: TUTORIAL_ROOM_LABELS[room.key],
@@ -383,6 +389,95 @@ function tutorialStepFor(player, room){
   return null;
 }
 
+function tutorialMoveTargets(player, room, targetNodes){
+  if(!player || !room || !targetNodes || !targetNodes.length) return [];
+  const roomAdj = adjacency(room)[player.nodeId] || [];
+  const direct = roomAdj.filter(id => targetNodes.includes(id));
+  if(direct.length) return direct;
+
+  let best = [];
+  let bestDist = Infinity;
+  for(const targetId of targetNodes){
+    const distFromTarget = graphDistance(room, targetId);
+    for(const nodeId of roomAdj){
+      const d = distFromTarget[nodeId];
+      if(d < bestDist){
+        bestDist = d;
+        best = [nodeId];
+      } else if(d === bestDist){
+        best.push(nodeId);
+      }
+    }
+  }
+  return [...new Set(best)];
+}
+
+function gridAnchorForNode(node){
+  const cols = 12;
+  const rows = 10;
+  const cx = Math.max(1, Math.min(cols - 1, Math.round(node.x / (100 / cols))));
+  const cy = Math.max(1, Math.min(rows - 1, Math.round(node.y / (100 / rows))));
+  return {
+    cx,
+    cy,
+    xPct: ((cx + 0.5) / cols) * 100,
+    yPct: ((cy + 0.5) / rows) * 100,
+  };
+}
+
+function footprintFor(player){
+  let w = 2;
+  let h = 1;
+  let label = "2×1 body";
+  if(player.role === "Vanguard"){
+    h = 2;
+    label = "2×2 heavy body";
+  }
+  if(player.braced){
+    w = Math.max(w, 3);
+    h = Math.max(h, 2);
+    label = "3×2 braced wings";
+  }
+  return { w, h, label };
+}
+
+function filteredActionsFor(player, room){
+  const actions = roomActionCards(player, room);
+  const tutorial = tutorialStepFor(player, room);
+  if(tutorial && tutorial.allowedActions && tutorial.allowedActions.length){
+    return actions.filter(action => tutorial.allowedActions.includes(action.id) || action.id === "advance");
+  }
+  return actions;
+}
+
+function legalMoveIdsFor(player, room){
+  if(!player || !room || !isActivePlayer(player.id) || state.turn.moveUsed || player.roomKey !== room.key) return [];
+  const roomAdj = adjacency(room)[player.nodeId] || [];
+  const tutorial = tutorialStepFor(player, room);
+  if(tutorial && tutorial.allowedNodes && tutorial.allowedNodes.length){
+    return roomAdj.filter(id => tutorial.allowedNodes.includes(id));
+  }
+  return roomAdj;
+}
+
+function maybeAutoEndTurn(){
+  if(state.screen !== "mission") return false;
+  const player = getPlayer(state.activePlayerId);
+  if(!player) return false;
+  const room = currentRoom();
+  const legalMoves = legalMoveIdsFor(player, room);
+  const legalActions = filteredActionsFor(player, room).filter(action => action.enabled);
+  if(legalMoves.length === 0 && legalActions.length === 0){
+    endTurn("had no legal move left in the drill");
+    return true;
+  }
+  if(state.turn.moveUsed && legalActions.length === 0){
+    endTurn("ran out of useful actions");
+    return true;
+  }
+  return false;
+}
+
 
 const ROOM_SEQUENCE = [
   {
@@ -628,7 +723,7 @@ function startMission(){
   state.exposure = 0;
   state.objectiveSecured = false;
   state.log = [
-    "Training run started. This is a board-based drill: move through real rooms, solve the route, and survive the way out.",
+    "Training run started. This is a board-based drill: move through real rooms on a grid, solve the route, and survive the way out.",
     "Player view controls one operator only. Teammates are only visible when they are close enough to see."
   ];
   state.debrief = null;
@@ -724,7 +819,7 @@ function movePlayerTo(playerId, nodeId){
     state.exposure += 1;
     log(`${player.callsign} steps onto the unstable joint. This is where bad extraction doctrine starts to feel tempting.`);
   }
-  render();
+  if(!maybeAutoEndTurn()) render();
 }
 
 function roomActionCards(player, room){
@@ -1251,9 +1346,22 @@ function renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial){
   }).join('');
 
   const edgeSvg = room.edges.map(([a,b])=>{
-    const na = roomNodes[a], nb = roomNodes[b];
+    const na = gridAnchorForNode(roomNodes[a]), nb = gridAnchorForNode(roomNodes[b]);
     const hidden = !isDm && (!visibleNodes.has(a) || !visibleNodes.has(b));
-    return `<line class="edge ${hidden?'hidden':''}" x1="${na.x}%" y1="${na.y}%" x2="${nb.x}%" y2="${nb.y}%"></line>`;
+    return `<line class="edge ${hidden?'hidden':''}" x1="${na.xPct}%" y1="${na.yPct}%" x2="${nb.xPct}%" y2="${nb.yPct}%"></line>`;
+  }).join("");
+
+  const footprintHtml = room.nodes.map(node=>{
+    const anchor = gridAnchorForNode(node);
+    const localPlayers = state.players.filter(p=>p.roomKey===room.key && p.nodeId===node.id);
+    return localPlayers.map(p=>{
+      if(!isDm && p.id!==viewingPlayer.id && !visibleTeammateIds.has(p.id)) return "";
+      const fp = footprintFor(p);
+      const visibleClass = !isDm && p.id!==viewingPlayer.id ? "ally" : (p.id===viewingPlayer?.id ? "self" : "dm");
+      return `<div class="footprint ${visibleClass}" style="left:${anchor.xPct}%; top:${anchor.yPct}%; width:calc(var(--cell-w) * ${fp.w}); height:calc(var(--cell-h) * ${fp.h}); border-color:${p.color}; box-shadow:0 0 0 1px ${p.color}55 inset;">
+        <span style="color:${p.color}">${fp.label}</span>
+      </div>`;
+    }).join("");
   }).join("");
 
   const nodeHtml = room.nodes.map(node=>{
@@ -1266,6 +1374,7 @@ function renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial){
     if(reachable.has(node.id)) classes.push("reachable");
     if(hidden) classes.push("hidden");
 
+    const anchor = gridAnchorForNode(node);
     const tokens = state.players.filter(p=>p.roomKey===room.key && p.nodeId===node.id).map(p=>{
       if(isDm){
         return `<span class="token" style="border-color:${p.color}; color:${p.color};">${p.callsign}</span>`;
@@ -1285,7 +1394,7 @@ function renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial){
       : '';
 
     return `
-      <div class="${classes.join(" ")}" data-node="${node.id}" style="left:${node.x}%; top:${node.y}%;">
+      <div class="${classes.join(" ")}" data-node="${node.id}" style="left:${anchor.xPct}%; top:${anchor.yPct}%;">
         <div class="node-type">${node.type}</div>
         <div class="node-name">${node.name}</div>
         <div class="node-desc">${node.desc}</div>
@@ -1300,6 +1409,7 @@ function renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial){
       <div class="board-grid"></div>
       <svg class="floorplan" viewBox="0 0 100 100" preserveAspectRatio="none">${floorSvg}${edgeSvg}</svg>
       <div class="room-watermark">${room.title}</div>
+      ${footprintHtml}
       ${nodeHtml}
     </div>
   `;
@@ -1308,7 +1418,7 @@ function renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial){
 function renderDmActions(room){
   return `
     <h3>DM Actions</h3>
-    <div class="objective">This build is focused on player-side movement and strict visibility separation. DM view is omniscient inspection, not the player control surface.</div>
+    <div class="objective">This build is focused on player-side movement, dragon footprints on the board grid, and strict visibility separation. DM view is omniscient inspection, not the player control surface.</div>
     <div class="footer-actions" style="margin-top:14px;">
       <button class="secondary" id="dm-site-reaction">Force site reaction</button>
     </div>
@@ -1327,7 +1437,8 @@ function renderPlayerActions(player, room, tutorial){
     <div class="objective">
       <strong>Current node:</strong> ${node.name}<br/>
       <strong>Objective:</strong> ${room.objectiveText}<br/>
-      <strong>Control rule:</strong> You can move and act only for ${player.callsign}. Visible teammates are information, not controls.
+      <strong>Control rule:</strong> You can move and act only for ${player.callsign}. Visible teammates are information, not controls.<br/>
+      <strong>Grid rule:</strong> Dragons occupy real board space. Compact bodies are 2×1, heavy bodies 2×2, and braced wings expand the footprint.
     </div>
     <div class="turn-banner ${active ? "" : "waiting"}" style="margin-top:12px;">
       <div>${active ? (tutorial ? tutorial.doNow : "You may move to an adjacent node or act from your current position.") : "Another player is active."}</div>
@@ -1380,7 +1491,10 @@ function bindMission(){
     roomActionCards(player, room).forEach(action=>{
       const btn = document.querySelector(`[data-action="${action.id}"]`);
       if(btn){
-        btn.addEventListener("click", ()=> action.onRun());
+        btn.addEventListener("click", ()=> {
+          action.onRun();
+          maybeAutoEndTurn();
+        });
       }
     });
     document.getElementById("end-turn-btn")?.addEventListener("click", ()=> endTurn("ended the turn"));
