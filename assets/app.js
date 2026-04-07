@@ -415,14 +415,52 @@ function tutorialMoveTargets(player, room, targetNodes){
 function gridAnchorForNode(node){
   const cols = 12;
   const rows = 10;
-  const cx = Math.max(1, Math.min(cols - 1, Math.round(node.x / (100 / cols))));
-  const cy = Math.max(1, Math.min(rows - 1, Math.round(node.y / (100 / rows))));
+  const cx = Math.max(1, Math.min(cols, Math.round(node.x / (100 / cols))));
+  const cy = Math.max(1, Math.min(rows, Math.round(node.y / (100 / rows))));
   return {
     cx,
     cy,
-    xPct: ((cx + 0.5) / cols) * 100,
-    yPct: ((cy + 0.5) / rows) * 100,
+    xPct: ((cx - 0.5) / cols) * 100,
+    yPct: ((cy - 0.5) / rows) * 100,
   };
+}
+
+function gridKey(cx, cy){
+  return `${cx},${cy}`;
+}
+
+function boardPathCells(room){
+  const nodes = nodeMap(room);
+  const cells = new Map();
+  const addCell = (cx, cy, kind = 'walkable') => {
+    const key = gridKey(cx, cy);
+    const prev = cells.get(key) || { cx, cy, kinds: new Set() };
+    prev.kinds.add(kind);
+    cells.set(key, prev);
+  };
+  room.nodes.forEach(node => {
+    const a = gridAnchorForNode(node);
+    addCell(a.cx, a.cy, 'walkable');
+    if(node.tags.includes('cover')) addCell(a.cx, a.cy, 'cover');
+    if(node.tags.includes('hazard')) addCell(a.cx, a.cy, 'hazard');
+    if(node.tags.includes('exposed')) addCell(a.cx, a.cy, 'exposed');
+    if(node.tags.includes('interactive')) addCell(a.cx, a.cy, 'interactive');
+  });
+  room.edges.forEach(([aId,bId]) => {
+    const a = gridAnchorForNode(nodes[aId]);
+    const b = gridAnchorForNode(nodes[bId]);
+    let x = a.cx, y = a.cy;
+    addCell(x, y, 'walkable');
+    while(x !== b.cx){
+      x += x < b.cx ? 1 : -1;
+      addCell(x, y, 'walkable');
+    }
+    while(y !== b.cy){
+      y += y < b.cy ? 1 : -1;
+      addCell(x, y, 'walkable');
+    }
+  });
+  return [...cells.values()];
 }
 
 function footprintFor(player){
@@ -1329,6 +1367,7 @@ function renderPlayerSidebar(player, room, visibleTeammates, hiddenTeammates, tu
 function renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial){
   const roomAdj = adjacency(room);
   const roomNodes = nodeMap(room);
+  const pathCells = boardPathCells(room);
   const rawReachable = (!isDm && viewingPlayer && isActivePlayer(viewingPlayer.id) && !state.turn.moveUsed && viewingPlayer.roomKey===room.key)
     ? new Set(roomAdj[viewingPlayer.nodeId] || [])
     : new Set();
@@ -1336,6 +1375,26 @@ function renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial){
   const reachable = tutorialNodeSet ? new Set([...rawReachable].filter(id => tutorialNodeSet.has(id))) : rawReachable;
 
   const visibleTeammateIds = !isDm && viewingPlayer ? new Set(visibleTeammatesFor(viewingPlayer, room).map(t=>t.id)) : new Set();
+  const visibleCellKeys = new Set();
+  if(isDm){
+    pathCells.forEach(cell => visibleCellKeys.add(gridKey(cell.cx, cell.cy)));
+  } else {
+    room.nodes.forEach(node => {
+      if(visibleNodes.has(node.id)) {
+        const a = gridAnchorForNode(node);
+        visibleCellKeys.add(gridKey(a.cx, a.cy));
+      }
+    });
+    room.edges.forEach(([aId, bId]) => {
+      if(!visibleNodes.has(aId) && !visibleNodes.has(bId)) return;
+      const a = gridAnchorForNode(roomNodes[aId]);
+      const b = gridAnchorForNode(roomNodes[bId]);
+      let x = a.cx, y = a.cy;
+      visibleCellKeys.add(gridKey(x,y));
+      while(x !== b.cx){ x += x < b.cx ? 1 : -1; visibleCellKeys.add(gridKey(x,y)); }
+      while(y !== b.cy){ y += y < b.cy ? 1 : -1; visibleCellKeys.add(gridKey(x,y)); }
+    });
+  }
 
   const floorSvg = (room.silhouettes || []).map(shape=>{
     if(shape.kind === "rect") return `<rect class="silhouette ${shape.cls || ''}" x="${shape.x}" y="${shape.y}" width="${shape.w}" height="${shape.h}" rx="4"></rect>`;
@@ -1349,68 +1408,58 @@ function renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial){
     const na = gridAnchorForNode(roomNodes[a]), nb = gridAnchorForNode(roomNodes[b]);
     const hidden = !isDm && (!visibleNodes.has(a) || !visibleNodes.has(b));
     return `<line class="edge ${hidden?'hidden':''}" x1="${na.xPct}%" y1="${na.yPct}%" x2="${nb.xPct}%" y2="${nb.yPct}%"></line>`;
-  }).join("");
+  }).join('');
 
-  const footprintHtml = room.nodes.map(node=>{
-    const anchor = gridAnchorForNode(node);
-    const localPlayers = state.players.filter(p=>p.roomKey===room.key && p.nodeId===node.id);
-    return localPlayers.map(p=>{
-      if(!isDm && p.id!==viewingPlayer.id && !visibleTeammateIds.has(p.id)) return "";
-      const fp = footprintFor(p);
-      const visibleClass = !isDm && p.id!==viewingPlayer.id ? "ally" : (p.id===viewingPlayer?.id ? "self" : "dm");
-      return `<div class="footprint ${visibleClass}" style="left:${anchor.xPct}%; top:${anchor.yPct}%; width:calc(var(--cell-w) * ${fp.w}); height:calc(var(--cell-h) * ${fp.h}); border-color:${p.color}; box-shadow:0 0 0 1px ${p.color}55 inset;">
-        <span style="color:${p.color}">${fp.label}</span>
-      </div>`;
-    }).join("");
-  }).join("");
+  const pathHtml = pathCells.map(cell => {
+    const hidden = !isDm && !visibleCellKeys.has(gridKey(cell.cx, cell.cy));
+    const classes = ['grid-tile'];
+    if(hidden) classes.push('hidden');
+    if(cell.kinds.has('cover')) classes.push('cover');
+    if(cell.kinds.has('hazard')) classes.push('hazard');
+    if(cell.kinds.has('exposed')) classes.push('exposed');
+    if(cell.kinds.has('interactive')) classes.push('interactive');
+    return `<div class="${classes.join(' ')}" style="grid-column:${cell.cx};grid-row:${cell.cy};"></div>`;
+  }).join('');
+
+  const footprintHtml = state.players.filter(p=>p.roomKey===room.key).map(p=>{
+    if(!isDm && p.id!==viewingPlayer?.id && !visibleTeammateIds.has(p.id)) return '';
+    const anchor = gridAnchorForNode(roomNodes[p.nodeId]);
+    const fp = footprintFor(p);
+    const startCol = Math.max(1, anchor.cx - Math.floor((fp.w - 1) / 2));
+    const startRow = Math.max(1, anchor.cy - Math.floor((fp.h - 1) / 2));
+    const visibleClass = !isDm && p.id!==viewingPlayer?.id ? 'ally' : (p.id===viewingPlayer?.id ? 'self' : 'dm');
+    return `<div class="footprint ${visibleClass}" style="grid-column:${startCol} / span ${fp.w}; grid-row:${startRow} / span ${fp.h}; border-color:${p.color}; box-shadow:0 0 0 1px ${p.color}55 inset;">
+      <span class="footprint-name" style="color:${p.color}">${p.callsign}</span>
+      <span>${fp.label}</span>
+    </div>`;
+  }).join('');
 
   const nodeHtml = room.nodes.map(node=>{
     const hidden = !isDm && !visibleNodes.has(node.id);
-    const classes = ["node"];
-    if(node.tags.includes("cover")) classes.push("cover");
-    if(node.tags.includes("exposed")) classes.push("exposed");
-    if(node.tags.includes("hazard")) classes.push("hazard");
-    if(node.tags.includes("interactive")) classes.push("interactive");
-    if(reachable.has(node.id)) classes.push("reachable");
-    if(hidden) classes.push("hidden");
-
     const anchor = gridAnchorForNode(node);
-    const tokens = state.players.filter(p=>p.roomKey===room.key && p.nodeId===node.id).map(p=>{
-      if(isDm){
-        return `<span class="token" style="border-color:${p.color}; color:${p.color};">${p.callsign}</span>`;
-      }
-      if(p.id===viewingPlayer.id){
-        return `<span class="token self" style="border-color:${p.color}; color:${p.color};">${p.callsign}</span>`;
-      }
-      if(visibleTeammateIds.has(p.id)){
-        return `<span class="token visible" style="border-color:${p.color}; color:${p.color};">${p.callsign}</span>`;
-      }
-      return "";
-    }).join("");
-
-    if(tutorialNodeSet && tutorialNodeSet.has(node.id)) classes.push("tutorial-target");
-    const prompt = reachable.has(node.id)
-      ? `<div class="node-prompt">${tutorialNodeSet && tutorialNodeSet.has(node.id) ? "Go here" : "Move"}</div>`
-      : '';
-
-    return `
-      <div class="${classes.join(" ")}" data-node="${node.id}" style="left:${anchor.xPct}%; top:${anchor.yPct}%;">
-        <div class="node-type">${node.type}</div>
-        <div class="node-name">${node.name}</div>
-        <div class="node-desc">${node.desc}</div>
-        ${prompt}
-        <div class="tokens">${tokens}</div>
-      </div>
-    `;
-  }).join("");
+    const classes = ['node-marker'];
+    if(hidden) classes.push('hidden');
+    if(reachable.has(node.id)) classes.push('reachable');
+    if(tutorialNodeSet && tutorialNodeSet.has(node.id)) classes.push('tutorial-target');
+    if(node.tags.includes('cover')) classes.push('cover');
+    if(node.tags.includes('hazard')) classes.push('hazard');
+    if(node.tags.includes('exposed')) classes.push('exposed');
+    if(node.tags.includes('interactive')) classes.push('interactive');
+    const prompt = reachable.has(node.id) ? `<span class="marker-prompt">${tutorialNodeSet && tutorialNodeSet.has(node.id) ? 'Go here' : 'Move'}</span>` : '';
+    return `<button class="${classes.join(' ')}" data-node="${node.id}" style="grid-column:${anchor.cx};grid-row:${anchor.cy};">
+      <span class="marker-dot"></span>
+      <span class="marker-name">${hidden ? 'Unknown' : node.name}</span>
+      ${hidden ? '' : prompt}
+    </button>`;
+  }).join('');
 
   return `
     <div class="board-shell room-${room.key}">
       <div class="board-grid"></div>
       <svg class="floorplan" viewBox="0 0 100 100" preserveAspectRatio="none">${floorSvg}${edgeSvg}</svg>
       <div class="room-watermark">${room.title}</div>
-      ${footprintHtml}
-      ${nodeHtml}
+      <div class="board-cells">${pathHtml}</div>
+      <div class="board-overlay">${footprintHtml}${nodeHtml}</div>
     </div>
   `;
 }
@@ -1438,7 +1487,7 @@ function renderPlayerActions(player, room, tutorial){
       <strong>Current node:</strong> ${node.name}<br/>
       <strong>Objective:</strong> ${room.objectiveText}<br/>
       <strong>Control rule:</strong> You can move and act only for ${player.callsign}. Visible teammates are information, not controls.<br/>
-      <strong>Grid rule:</strong> Dragons occupy real board space. Compact bodies are 2×1, heavy bodies 2×2, and braced wings expand the footprint.
+      <strong>Grid rule:</strong> You move one connected position at a time through real board space. Dragons occupy multiple cells: compact bodies are 2×1, heavy bodies 2×2, and braced wings expand the footprint.
     </div>
     <div class="turn-banner ${active ? "" : "waiting"}" style="margin-top:12px;">
       <div>${active ? (tutorial ? tutorial.doNow : "You may move to an adjacent node or act from your current position.") : "Another player is active."}</div>
