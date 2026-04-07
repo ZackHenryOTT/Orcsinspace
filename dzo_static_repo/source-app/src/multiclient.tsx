@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRight, Clock3, Eye, Lock, Radio, Target, Users, Wind, Wrench } from "lucide-react";
 
-type RoomId = "dock" | "entry" | "spine" | "pocket" | "gap" | "core" | "extract" | "fatal";
+type RoomType = "briefing" | "movement" | "route" | "traversal" | "combat" | "escape" | "fatal";
+type RoomId = "dock" | "entry" | "spine" | "gap" | "core" | "extract" | "fatal";
 type Lane = "front" | "cover" | "back";
 type Role = "Vanguard" | "Signal Hacker" | "Marksman" | "Engineer / Tech";
 
@@ -12,8 +12,9 @@ type PlayerClient = {
   family: string;
   suit: string;
   weapon: string;
-  room: RoomId;
   lane: Lane;
+  roomId: RoomId;
+  zoneIndex: number;
   hp: number;
   oxygen: number;
   power: number;
@@ -23,514 +24,533 @@ type PlayerClient = {
   braced: boolean;
 };
 
+type RoomMeta = {
+  id: RoomId;
+  title: string;
+  type: RoomType;
+  short: string;
+  lesson: string;
+  objective: string;
+  zones: string[];
+};
+
+type RoomState = {
+  stability: number;
+  exposure: number;
+  support: number;
+  sweepRead: boolean;
+  objectiveSecured: boolean;
+  problemHits: number;
+  fatalMistake: boolean;
+};
+
 type ActionDef = {
   id: string;
   label: string;
   why: string;
-  requirement?: (player: PlayerClient) => boolean;
-  requirementText?: string;
-  apply: (player: PlayerClient) => Partial<PlayerClient> & { advanceRoom?: boolean; setRoom?: RoomId; sealDelta?: number; pressureDelta?: number; progressDelta?: number; log?: string };
+  tone: "good" | "bad" | "neutral";
+  enabled?: boolean;
+  disabledText?: string;
+  apply: () => void;
 };
 
-type RoomMeta = {
-  id: RoomId;
-  title: string;
-  short: string;
-  lesson: string;
-  type: "briefing" | "movement" | "route" | "side-route" | "traversal" | "combat" | "escape" | "fatal";
-};
-
-const ROOM_ORDER: RoomId[] = ["dock", "entry", "spine", "pocket", "gap", "core", "extract", "fatal"];
-
-const ROOM_META: Record<RoomId, RoomMeta> = {
-  dock: {
-    id: "dock",
-    title: "Dock Collar",
-    short: "Final clean briefing before the seal breaks.",
-    lesson: "This is the last safe room. Once the seal breaks, the level starts pushing back.",
-    type: "briefing",
-  },
-  entry: {
-    id: "entry",
-    title: "Entry Lock",
-    short: "Clock starts. Movement order matters.",
-    lesson: "The mission has begun. Small decisions now affect how ugly the level becomes.",
-    type: "movement",
-  },
-  spine: {
-    id: "spine",
-    title: "Sensor Spine",
-    short: "Timing, sightlines, signal pressure.",
-    lesson: "Do not overprepare. The room tightens every round you hesitate.",
-    type: "route",
-  },
-  pocket: {
-    id: "pocket",
-    title: "Maintenance Pocket",
-    short: "Safer, slower, narrower route.",
-    lesson: "Safer routes still cost time. Time is also a resource.",
-    type: "side-route",
-  },
-  gap: {
-    id: "gap",
-    title: "Crosswind Gap",
-    short: "Vacuum traversal and tether discipline.",
-    lesson: "Wings are control surfaces here, not free flight. Tethers stop stupid deaths.",
-    type: "traversal",
-  },
-  core: {
-    id: "core",
-    title: "Signal Core Room",
-    short: "Contained tactical pressure room.",
-    lesson: "Combat solves part of the mission, not the whole mission.",
-    type: "combat",
-  },
-  extract: {
-    id: "extract",
-    title: "Extraction Run",
-    short: "The route out is worse than the route in.",
-    lesson: "Winning the room means nothing if you lose the way out.",
-    type: "escape",
-  },
-  fatal: {
-    id: "fatal",
-    title: "Outer Service Arm",
-    short: "Final bad-decision lesson.",
-    lesson: "A squad can survive the room and still die in vacuum by getting arrogant on extraction.",
-    type: "fatal",
-  },
-};
-
-const STARTING_PLAYERS: PlayerClient[] = [
-  { id: "p1", callsign: "Operator 1", role: "Vanguard", family: "Metallic", suit: "Breach", weapon: "Coil Carbine", room: "dock", lane: "front", hp: 18, oxygen: 100, power: 4, heat: 0, stress: 0, tethered: false, braced: false },
-  { id: "p2", callsign: "Operator 2", role: "Signal Hacker", family: "Gem", suit: "Relay", weapon: "Laser Intercept", room: "dock", lane: "cover", hp: 12, oxygen: 100, power: 5, heat: 0, stress: 0, tethered: false, braced: false },
-  { id: "p3", callsign: "Operator 3", role: "Marksman", family: "Chromatic", suit: "Vector", weapon: "Coil Marksman", room: "dock", lane: "back", hp: 13, oxygen: 100, power: 4, heat: 0, stress: 0, tethered: false, braced: false },
-  { id: "p4", callsign: "Operator 4", role: "Engineer / Tech", family: "Metallic", suit: "Containment", weapon: "Slug Utility", room: "dock", lane: "cover", hp: 14, oxygen: 100, power: 5, heat: 0, stress: 0, tethered: false, braced: false },
+const ROOMS: RoomMeta[] = [
+  { id: "dock", title: "Dock Collar", type: "briefing", short: "Final clean briefing before the seal breaks.", lesson: "This is the last safe room. Once the seal breaks, the level starts pushing back.", objective: "Get the squad stacked on the inner seal and start the run.", zones: ["Staging Rack", "Seal Console", "Threshold"] },
+  { id: "entry", title: "Entry Lock", type: "movement", short: "Movement order matters as the clock starts biting.", lesson: "You do not need everybody doing everything. You need the right people doing the right things.", objective: "Move all operators through the lock without wasting the first clean window.", zones: ["Outer Lock", "Inner Lock", "Service Threshold"] },
+  { id: "spine", title: "Sensor Spine", type: "route", short: "Timing, sightlines, and bad greed.", lesson: "Every extra setup action costs time. Time makes the room smarter.", objective: "Thread the sweep lane and get the whole squad to far cover.", zones: ["Near Cover", "Sweep Lane", "Center Span", "Far Cover"] },
+  { id: "gap", title: "Crosswind Gap", type: "traversal", short: "Vacuum traversal and tether discipline.", lesson: "Wings are control surfaces here, not free flight. Tethers stop stupid deaths.", objective: "Cross the breach with enough stability to keep the squad intact.", zones: ["Near Anchor", "Broken Span", "Hazard Rail", "Far Brace"] },
+  { id: "core", title: "Signal Core Room", type: "combat", short: "Contained tactical pressure room.", lesson: "Combat is there to let you extract the objective, not to flatter your ego.", objective: "Kill the room's control problem, secure the core, and fall back to the exit lane.", zones: ["Breach Door", "Kill Lane", "Core Pedestal", "Exit Door"] },
+  { id: "extract", title: "Extraction Run", type: "escape", short: "The path back is uglier than the path in.", lesson: "Winning the room means nothing if you die getting out.", objective: "Move the whole squad to the service junction with the objective intact.", zones: ["Return Choke", "Sliding Shutters", "Open Run", "Service Junction"] },
+  { id: "fatal", title: "Outer Service Arm", type: "fatal", short: "The final bad-decision lesson.", lesson: "One rushed extraction choice can kill a squad that 'won' every previous room.", objective: "Choose whether to stay disciplined or cut the corner and learn why that kills people.", zones: ["Outer Hatch", "Service Arm", "Broken Rail", "Void Edge"] },
 ];
 
-function nextRoom(room: RoomId): RoomId {
-  const idx = ROOM_ORDER.indexOf(room);
-  return ROOM_ORDER[Math.min(idx + 1, ROOM_ORDER.length - 1)];
+const ROOM_BY_ID = Object.fromEntries(ROOMS.map((room) => [room.id, room])) as Record<RoomId, RoomMeta>;
+const ROOM_INDEX = Object.fromEntries(ROOMS.map((room, index) => [room.id, index])) as Record<RoomId, number>;
+
+const INITIAL_PLAYERS: PlayerClient[] = [
+  { id: "p1", callsign: "Operator 1", role: "Vanguard", family: "Metallic", suit: "Breach", weapon: "Coil Carbine", lane: "front", roomId: "dock", zoneIndex: 0, hp: 18, oxygen: 100, power: 4, heat: 0, stress: 0, tethered: false, braced: false },
+  { id: "p2", callsign: "Operator 2", role: "Signal Hacker", family: "Gem", suit: "Relay", weapon: "Laser Intercept", lane: "cover", roomId: "dock", zoneIndex: 0, hp: 12, oxygen: 100, power: 5, heat: 0, stress: 0, tethered: false, braced: false },
+  { id: "p3", callsign: "Operator 3", role: "Marksman", family: "Chromatic", suit: "Vector", weapon: "Coil Marksman", lane: "back", roomId: "dock", zoneIndex: 0, hp: 13, oxygen: 100, power: 4, heat: 0, stress: 0, tethered: false, braced: false },
+  { id: "p4", callsign: "Operator 4", role: "Engineer / Tech", family: "Metallic", suit: "Containment", weapon: "Slug Utility", lane: "cover", roomId: "dock", zoneIndex: 0, hp: 14, oxygen: 100, power: 5, heat: 0, stress: 0, tethered: false, braced: false },
+];
+
+function createRoomState(): Record<RoomId, RoomState> {
+  return Object.fromEntries(ROOMS.map((room) => [room.id, { stability: room.type === "briefing" ? 2 : 0, exposure: 0, support: 0, sweepRead: false, objectiveSecured: false, problemHits: 0, fatalMistake: false }])) as Record<RoomId, RoomState>;
 }
 
 function clamp(value: number, low: number, high: number) {
   return Math.max(low, Math.min(high, value));
 }
 
-function actionLibrary(room: RoomId): ActionDef[] {
-  const roomType = ROOM_META[room].type;
-  if (roomType === "briefing") {
-    return [{
-      id: "break-seal",
-      label: "Break Seal",
-      why: "This starts the mission clock. You do it when the team is ready enough, not perfect.",
-      apply: () => ({ advanceRoom: true, sealDelta: -1, progressDelta: 1, log: "The seal breaks. The room starts thinking about you now." }),
-    }];
-  }
-  if (roomType === "movement") {
-    return [
-      {
-        id: "advance-carefully",
-        label: "Advance Carefully",
-        why: "Good default when the room is still readable. You move without making the level worse on purpose.",
-        apply: () => ({ advanceRoom: true, sealDelta: -1, progressDelta: 1, log: "The team moves into the station with discipline instead of panic." }),
-      },
-      {
-        id: "read-entry",
-        label: "Read the Entry",
-        why: "Use this when information is worth more than raw speed.",
-        apply: (player) => ({ power: clamp(player.power - 1, 0, 6), sealDelta: -1, pressureDelta: -1, log: "The entry pattern gets a little clearer, but the clock still burns." }),
-      },
-    ];
-  }
-  if (roomType === "route") {
-    return [
-      {
-        id: "time-sweep",
-        label: "Time the Sweep",
-        why: "Spending a little time now can stop the room from making the crossing ugly later.",
-        apply: () => ({ sealDelta: -1, pressureDelta: -1, log: "The squad reads the sweep rhythm instead of just charging it." }),
-      },
-      {
-        id: "maintenance-pocket",
-        label: "Use Maintenance Pocket",
-        why: "Safer route, slower route. Good when the squad cannot afford a dirty crossing.",
-        apply: () => ({ setRoom: "pocket", sealDelta: -1, log: "The squad peels off into the side pocket to buy a little control." }),
-      },
-      {
-        id: "push-spine",
-        label: "Push the Spine",
-        why: "Fast line. Useful when the squad can handle a dirtier commit.",
-        apply: () => ({ advanceRoom: true, sealDelta: -1, pressureDelta: 1, progressDelta: 1, log: "The squad pushes the main line and accepts a rougher room state." }),
-      },
-    ];
-  }
-  if (roomType === "side-route") {
-    return [{
-      id: "manual-cut",
-      label: "Manual Access Cut",
-      why: "The slower disciplined workaround. You buy stability with time.",
-      apply: () => ({ advanceRoom: true, sealDelta: -1, progressDelta: 1, log: "The manual cut works, but it costs real time." }),
-    }];
-  }
-  if (roomType === "traversal") {
-    return [
-      {
-        id: "anchor-tether",
-        label: "Anchor Tether",
-        why: "Forced movement kills careless squads faster than damage does. Clip in before getting clever.",
-        apply: (player) => ({ power: clamp(player.power - 1, 0, 6), tethered: true, sealDelta: -1, log: `${player.callsign} clips in before committing to the vacuum crossing.` }),
-      },
-      {
-        id: "wing-brace",
-        label: "Wing Brace",
-        why: "Brace when the room is trying to spin, drag, or overcorrect you.",
-        apply: (player) => ({ power: clamp(player.power - 1, 0, 6), braced: true, sealDelta: -1, log: `${player.callsign} braces wings for control, not speed.` }),
-      },
-      {
-        id: "cross-gap",
-        label: "Cross the Gap",
-        why: "Moving is the point. Setup is only worth what it buys you.",
-        requirement: (player) => player.tethered || player.braced,
-        requirementText: "Crossing raw is reckless. Tether or brace first.",
-        apply: (player) => ({ advanceRoom: true, oxygen: clamp(player.oxygen - 8, 0, 100), sealDelta: -1, progressDelta: 1, log: `${player.callsign} commits to the gap crossing.` }),
-      },
-    ];
-  }
-  if (roomType === "combat") {
-    return [
-      {
-        id: "attack-problem",
-        label: "Attack the Problem",
-        why: "The goal is not total slaughter. Hit the thing making the room worse.",
-        apply: (player) => ({ heat: clamp(player.heat + 1, 0, 10), sealDelta: -1, pressureDelta: -1, progressDelta: 1, log: `${player.callsign} attacks the thing actually shaping the room.` }),
-      },
-      {
-        id: "use-role",
-        label: "Use Role Ability",
-        why: "Role abilities are often more efficient than generic damage when the room is solving you with systems and timing.",
-        apply: (player) => ({ power: clamp(player.power - 1, 0, 6), sealDelta: -1, pressureDelta: -1, progressDelta: 1, log: `${player.callsign} uses their role to make the room less ugly.` }),
-      },
-      {
-        id: "secure-objective",
-        label: "Secure Objective",
-        why: "Combat is not the mission. The objective is the mission.",
-        apply: () => ({ advanceRoom: true, sealDelta: -1, progressDelta: 2, log: "The signal core is secured. Now the only smart thing left is getting out." }),
-      },
-    ];
-  }
-  if (roomType === "escape") {
-    return [
-      {
-        id: "extract-disciplined",
-        label: "Extract Disciplined",
-        why: "This is the real win condition. Get out alive with the objective.",
-        apply: (player) => ({ advanceRoom: true, oxygen: clamp(player.oxygen - 5, 0, 100), sealDelta: -1, progressDelta: 1, log: `${player.callsign} keeps extraction discipline instead of showing off.` }),
-      },
-      {
-        id: "rush-exit",
-        label: "Rush the Exit",
-        why: "Tempting when the clock is ugly. Risky because speed makes mistakes likelier.",
-        apply: (player) => ({ advanceRoom: true, oxygen: clamp(player.oxygen - 10, 0, 100), stress: player.stress + 1, sealDelta: -1, pressureDelta: 1, progressDelta: 1, log: `${player.callsign} rushes the extraction line and makes the whole run shakier.` }),
-      },
-    ];
-  }
-  return [
-    {
-      id: "cut-corner",
-      label: "Cut the Corner",
-      why: "This is the bad extraction instinct: the room feels solved, so discipline gets dropped first.",
-      apply: () => ({ progressDelta: 0, pressureDelta: 2, log: "The lesson lands: surviving the room is not the same thing as surviving the mission." }),
-    },
-  ];
+function nextRoom(roomId: RoomId) {
+  const nextIndex = Math.min(ROOM_INDEX[roomId] + 1, ROOMS.length - 1);
+  return ROOMS[nextIndex].id;
 }
 
-function StatusChip({ label, value, danger = false }: { label: string; value: string | number; danger?: boolean }) {
-  return (
-    <div className={`header-stat ${danger ? "status-danger" : ""}`}>
-      <div className="header-stat-label">{label}</div>
-      <div className="header-stat-value">{value}</div>
-    </div>
-  );
+function laneTone(lane: Lane) {
+  if (lane === "front") return "lane-front";
+  if (lane === "cover") return "lane-cover";
+  return "lane-back";
 }
 
-function laneClass(lane: Lane) {
-  return lane === "front" ? "tone-red" : lane === "cover" ? "tone-amber" : "tone-cyan";
+function toneClass(tone: ActionDef["tone"]) {
+  if (tone === "good") return "route-card tone-good";
+  if (tone === "bad") return "route-card tone-bad";
+  return "route-card";
 }
 
-function roleClass(role: Role) {
-  return role === "Vanguard" ? "tone-red" : role === "Signal Hacker" ? "tone-violet" : role === "Marksman" ? "tone-cyan" : "tone-mint";
-}
-
-function LevelMap({ players, currentRoom }: { players: PlayerClient[]; currentRoom: RoomId }) {
-  const occupied = useMemo(() => {
-    const map = {} as Record<RoomId, PlayerClient[]>;
-    ROOM_ORDER.forEach((room) => { map[room] = players.filter((player) => player.room === room); });
-    return map;
-  }, [players]);
-
-  return (
-    <div className="panel theater-panel">
-      <div className="panel-head">
-        <div className="small-label"><Target size={14} /> Tutorial Level Layout</div>
-      </div>
-      <div className="map-grid">
-        {ROOM_ORDER.map((roomId) => (
-          <div key={roomId} className={`map-room ${currentRoom === roomId ? "map-room-active" : ""}`}>
-            <div className="micro-label">{ROOM_META[roomId].type}</div>
-            <div className="map-room-title">{ROOM_META[roomId].title}</div>
-            <div className="small-copy">{ROOM_META[roomId].short}</div>
-            <div className="compact-tags">
-              {occupied[roomId].map((player) => (
-                <div key={player.id} className="pill pill-dark">{player.callsign}</div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PlayerView({ player, currentRoom, onAct, activeTurnId, turnTimeLeft }: { player: PlayerClient; currentRoom: RoomId; onAct: (playerId: string, action: ActionDef) => void; activeTurnId: string; turnTimeLeft: number }) {
-  const room = ROOM_META[currentRoom];
-  const actions = actionLibrary(currentRoom);
-  const isActive = activeTurnId === player.id;
-  return (
-    <div className="panel theater-panel">
-      <div className="operator-head">
-        <div>
-          <div className="small-label">Player View</div>
-          <h2 className="operator-name">{player.callsign}</h2>
-          <div className={`small-copy ${roleClass(player.role)}`}>{player.role} • {player.family}</div>
-        </div>
-        <div className={`pill ${isActive ? "pill-good" : "pill-dark"}`}>{isActive ? `Your turn • ${turnTimeLeft}s` : "Waiting"}</div>
-      </div>
-      <div className="stats-grid">
-        <StatusChip label="Room" value={room.title} />
-        <StatusChip label="HP" value={player.hp} danger={player.hp <= 6} />
-        <StatusChip label="Oxygen" value={player.oxygen} danger={player.oxygen <= 40} />
-        <StatusChip label="Power" value={player.power} danger={player.power <= 1} />
-        <StatusChip label="Lane" value={player.lane} />
-      </div>
-      <div className="sub-panel">
-        <div className="small-label"><Eye size={14} /> What this room is teaching</div>
-        <div className="panel-copy">{room.lesson}</div>
-      </div>
-      <div className="sub-panel">
-        <div className="small-label"><Wrench size={14} /> Your kit</div>
-        <div className="panel-copy">{player.suit} suit • {player.weapon}</div>
-        <div className="compact-tags">
-          <div className={`pill ${laneClass(player.lane)}`}>{player.lane}</div>
-          {player.tethered && <div className="pill pill-good">Tethered</div>}
-          {player.braced && <div className="pill pill-info">Braced</div>}
-        </div>
-      </div>
-      <div className="stack">
-        <div className="small-label"><ArrowRight size={14} /> Your actions</div>
-        {actions.map((action) => {
-          const allowed = action.requirement ? action.requirement(player) : true;
-          return (
-            <div key={action.id} className="route-card">
-              <div className="route-head">
-                <div>
-                  <div className="route-title">{action.label}</div>
-                  <div className="small-copy">{action.why}</div>
-                  {!allowed && <div className="danger-note">{action.requirementText}</div>}
-                </div>
-                <button className={`button ${isActive && allowed ? "button-primary" : "button-secondary"}`} disabled={!isActive || !allowed} onClick={() => onAct(player.id, action)}>
-                  Commit
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function DmView({ players, currentRoom, sealClock, progress, pressure, log, activeTurnId, turnTimeLeft }: { players: PlayerClient[]; currentRoom: RoomId; sealClock: number; progress: number; pressure: number; log: string[]; activeTurnId: string; turnTimeLeft: number }) {
-  const room = ROOM_META[currentRoom];
-  return (
-    <div className="panel theater-panel">
-      <div className="operator-head">
-        <div>
-          <div className="small-label">DM View</div>
-          <h2 className="operator-name">{room.title}</h2>
-          <div className="small-copy">{room.short}</div>
-        </div>
-        <div className="pill pill-warning">Active Turn: {players.find((player) => player.id === activeTurnId)?.callsign || "—"} • {turnTimeLeft}s</div>
-      </div>
-      <div className="stats-grid">
-        <StatusChip label="Seal Clock" value={sealClock} danger={sealClock <= 2} />
-        <StatusChip label="Progress" value={progress} />
-        <StatusChip label="Pressure" value={pressure} danger={pressure >= 3} />
-        <StatusChip label="Room Type" value={room.type} />
-      </div>
-      <div className="dm-grid">
-        <div className="sub-panel">
-          <div className="small-label"><Users size={14} /> Operator telemetry</div>
-          <div className="stack">
-            {players.map((player) => (
-              <div key={player.id} className="crew-list-card">
-                <div className="crew-list-head">
-                  <div>
-                    <div className="crew-name">{player.callsign}</div>
-                    <div className="small-copy">{player.role} • {player.room}</div>
-                  </div>
-                  <div className={`pill ${laneClass(player.lane)}`}>{player.lane}</div>
-                </div>
-                <div className="meter-row">
-                  <div className="pill pill-dark">HP {player.hp}</div>
-                  <div className="pill pill-dark">O₂ {player.oxygen}</div>
-                  <div className="pill pill-dark">PWR {player.power}</div>
-                  <div className="pill pill-dark">Heat {player.heat}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="sub-panel">
-          <div className="small-label"><Radio size={14} /> Event log</div>
-          <div className="stack">
-            {log.map((entry, idx) => (
-              <div key={idx} className="log-entry">{entry}</div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TestHarness({ selectedClient, setSelectedClient, players, activeTurnId }: { selectedClient: string; setSelectedClient: (id: string) => void; players: PlayerClient[]; activeTurnId: string }) {
-  return (
-    <div className="panel theater-panel">
-      <div className="panel-head">
-        <div className="small-label"><Users size={14} /> Local Multi-Client Test Harness</div>
-      </div>
-      <div className="button-cluster">
-        <button className={`button ${selectedClient === "dm" ? "button-warning" : "button-secondary"}`} onClick={() => setSelectedClient("dm")}>DM View</button>
-        {players.map((player) => (
-          <button key={player.id} className={`button ${selectedClient === player.id ? "button-primary" : "button-secondary"}`} onClick={() => setSelectedClient(player.id)}>
-            {player.callsign}{activeTurnId === player.id ? " • active" : ""}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+function roomComplete(room: RoomMeta, players: PlayerClient[], roomState: RoomState) {
+  const finalZone = room.zones.length - 1;
+  if (room.type === "combat") return roomState.objectiveSecured && players.every((player) => player.zoneIndex >= finalZone);
+  if (room.type === "fatal") return roomState.fatalMistake || players.every((player) => player.zoneIndex >= finalZone);
+  return players.every((player) => player.zoneIndex >= finalZone);
 }
 
 export function MulticlientFoundation() {
-  const [players, setPlayers] = useState<PlayerClient[]>(STARTING_PLAYERS);
-  const [currentRoom, setCurrentRoom] = useState<RoomId>("dock");
   const [selectedClient, setSelectedClient] = useState<string>("dm");
+  const [players, setPlayers] = useState<PlayerClient[]>(INITIAL_PLAYERS);
+  const [roomState, setRoomState] = useState<Record<RoomId, RoomState>>(createRoomState());
+  const [currentRoomId, setCurrentRoomId] = useState<RoomId>("dock");
   const [sealClock, setSealClock] = useState(7);
-  const [progress, setProgress] = useState(0);
   const [pressure, setPressure] = useState(0);
-  const [turnOrder, setTurnOrder] = useState(STARTING_PLAYERS.map((player) => player.id));
+  const [round, setRound] = useState(1);
+  const [turnOrder] = useState(INITIAL_PLAYERS.map((player) => player.id));
   const [turnIndex, setTurnIndex] = useState(0);
-  const [turnTimeLeft, setTurnTimeLeft] = useState(12);
+  const [turnTimeLeft, setTurnTimeLeft] = useState(14);
+  const [missionEnded, setMissionEnded] = useState(false);
   const [log, setLog] = useState<string[]>([
     "Training run loaded.",
-    "This slice proves the real architecture: separate player screens, a DM view, and a mapped tutorial level.",
+    "This is the real architecture: each player sees only their own operator view, while the DM sees the whole room state.",
+    "The level is room-and-zone based. Players move through a place, not a list of abstract buttons.",
   ]);
 
-  const activeTurnId = turnOrder[turnIndex] || STARTING_PLAYERS[0].id;
+  const room = ROOM_BY_ID[currentRoomId];
+  const currentRs = roomState[currentRoomId];
+  const activeTurnId = turnOrder[turnIndex] || INITIAL_PLAYERS[0].id;
+  const activePlayer = players.find((player) => player.id === activeTurnId) || players[0];
+  const visiblePlayer = players.find((player) => player.id === selectedClient) || players[0];
+  const roomPlayers = useMemo(() => players.filter((player) => player.roomId === currentRoomId), [players, currentRoomId]);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setTurnTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
-    return () => window.clearInterval(timer);
-  }, [activeTurnId]);
+  const pushLog = (text: string) => setLog((prev) => [text, ...prev].slice(0, 18));
 
-  useEffect(() => {
-    if (turnTimeLeft > 0) return;
-    const actor = players.find((player) => player.id === activeTurnId);
-    setLog((prev) => [`${actor?.callsign || "An operator"} hesitates too long and loses the turn. The room keeps moving.`, ...prev]);
-    setSealClock((prev) => clamp(prev - 1, 0, 10));
-    setPressure((prev) => clamp(prev + 1, 0, 10));
-    setTurnIndex((prev) => (prev + 1) % turnOrder.length);
-    setTurnTimeLeft(12);
-  }, [turnTimeLeft]);
+  const resetRun = () => {
+    setSelectedClient("dm");
+    setPlayers(INITIAL_PLAYERS.map((player) => ({ ...player })));
+    setRoomState(createRoomState());
+    setCurrentRoomId("dock");
+    setSealClock(7);
+    setPressure(0);
+    setRound(1);
+    setTurnIndex(0);
+    setTurnTimeLeft(14);
+    setMissionEnded(false);
+    setLog([
+      "Training run reset.",
+      "The level is room-and-zone based. Players move through a place, not a list of abstract buttons.",
+    ]);
+  };
 
-  const applyAction = (playerId: string, action: ActionDef) => {
-    if (playerId !== activeTurnId) return;
-    const actor = players.find((player) => player.id === playerId);
+  const finishTurn = (label: string, actorId: string, customLog?: string) => {
+    const actor = players.find((player) => player.id === actorId);
     if (!actor) return;
-    const result = action.apply(actor);
-    setPlayers((prev) => prev.map((player) => {
-      if (player.id !== playerId) return player;
-      const nextRoomValue = result.setRoom ? result.setRoom : result.advanceRoom ? nextRoom(player.room) : player.room;
-      return {
-        ...player,
-        room: nextRoomValue,
-        hp: result.hp ?? player.hp,
-        oxygen: result.oxygen ?? player.oxygen,
-        power: result.power ?? player.power,
-        heat: result.heat ?? player.heat,
-        stress: result.stress ?? player.stress,
-        tethered: result.tethered ?? player.tethered,
-        braced: result.braced ?? player.braced,
-      };
-    }));
-    if (result.advanceRoom) setCurrentRoom((prev) => nextRoom(prev));
-    if (result.setRoom) setCurrentRoom(result.setRoom);
-    if (typeof result.sealDelta === "number") setSealClock((prev) => clamp(prev + result.sealDelta, 0, 10));
-    if (typeof result.pressureDelta === "number") setPressure((prev) => clamp(prev + result.pressureDelta, 0, 10));
-    if (typeof result.progressDelta === "number") setProgress((prev) => clamp(prev + result.progressDelta, 0, 10));
-    setLog((prev) => [result.log || `${actor.callsign} commits ${action.label}.`, ...prev]);
-    const nextTurn = (turnIndex + 1) % turnOrder.length;
-    setTurnIndex(nextTurn);
-    setTurnTimeLeft(12);
-    if (nextTurn === 0) {
+    pushLog(customLog || `${actor.callsign} commits ${label}.`);
+
+    const maybeUpdatedRoomPlayers = players.filter((player) => player.roomId === currentRoomId);
+    if (roomComplete(room, maybeUpdatedRoomPlayers, roomState[currentRoomId])) {
+      if (room.type === "fatal" && roomState[currentRoomId].fatalMistake) {
+        setMissionEnded(true);
+        pushLog("The lesson lands: surviving the room is not the same thing as surviving the mission. The squad dies because extraction discipline broke first.");
+        return;
+      }
+      const next = nextRoom(currentRoomId);
+      if (next !== currentRoomId) {
+        setCurrentRoomId(next);
+        setPlayers((prev) => prev.map((player) => ({ ...player, roomId: next, zoneIndex: 0, tethered: false, braced: false })));
+        pushLog(`${room.title} gives way to ${ROOM_BY_ID[next].title}. The squad keeps moving because standing still is how the site wins.`);
+      }
+    }
+
+    const nextIndex = (turnIndex + 1) % turnOrder.length;
+    setTurnIndex(nextIndex);
+    setTurnTimeLeft(14);
+
+    if (nextIndex === 0) {
+      setRound((prev) => prev + 1);
       setSealClock((prev) => clamp(prev - 1, 0, 10));
       setPressure((prev) => clamp(prev + 1, 0, 10));
-      setLog((prev) => ["Site reaction: the room tightens while the squad commits and hesitates.", ...prev]);
+      setRoomState((prev) => {
+        const copy = { ...prev };
+        const rs = { ...copy[currentRoomId] };
+        if (room.type !== "briefing") rs.exposure = clamp(rs.exposure + 1, 0, 8);
+        if (room.type === "route" && !rs.sweepRead) rs.exposure = clamp(rs.exposure + 1, 0, 8);
+        if (room.type === "traversal" && rs.stability <= 0) rs.exposure = clamp(rs.exposure + 1, 0, 8);
+        if (room.type === "combat" && !rs.objectiveSecured) rs.problemHits = clamp(rs.problemHits + 1, 0, 3);
+        rs.support = Math.max(0, rs.support - 1);
+        copy[currentRoomId] = rs;
+        return copy;
+      });
+      pushLog("Site reaction: the room tightens. Every extra round makes the level meaner.");
     }
   };
 
-  const selectedPlayer = players.find((player) => player.id === selectedClient) || players[0];
+  useEffect(() => {
+    if (missionEnded) return;
+    const timer = window.setInterval(() => setTurnTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [missionEnded, activeTurnId]);
+
+  useEffect(() => {
+    if (missionEnded || turnTimeLeft > 0) return;
+    pushLog(`${activePlayer.callsign} hesitates too long and loses the turn. The room keeps moving.`);
+    const nextIndex = (turnIndex + 1) % turnOrder.length;
+    setTurnIndex(nextIndex);
+    setTurnTimeLeft(14);
+    if (nextIndex === 0) {
+      setRound((prev) => prev + 1);
+      setSealClock((prev) => clamp(prev - 1, 0, 10));
+      setPressure((prev) => clamp(prev + 1, 0, 10));
+    }
+  }, [turnTimeLeft, missionEnded, turnIndex, activePlayer.callsign]);
+
+  const moveOneZone = (playerId: string, oxygenCost: number, logText: string) => {
+    setPlayers((prev) => prev.map((player) => player.id === playerId ? { ...player, zoneIndex: clamp(player.zoneIndex + 1, 0, room.zones.length - 1), oxygen: clamp(player.oxygen - oxygenCost, 0, 100) } : player));
+    finishTurn("Move", playerId, logText);
+  };
+
+  const currentActions = (player: PlayerClient): ActionDef[] => {
+    const rs = roomState[currentRoomId];
+    const common: ActionDef[] = [
+      {
+        id: "steady",
+        label: "Keep Formation",
+        why: "Spend your turn helping the squad stay disciplined instead of piling on random extra actions.",
+        tone: "good",
+        apply: () => {
+          setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], stability: clamp(prev[currentRoomId].stability + 1, 0, 6), exposure: clamp(prev[currentRoomId].exposure - 1, 0, 8) } }));
+          finishTurn("Keep Formation", player.id, `${player.callsign} spends the turn keeping the squad disciplined and the room from getting free hits.`);
+        },
+      },
+    ];
+
+    if (room.type === "briefing") {
+      return [
+        {
+          id: "move-seal",
+          label: player.zoneIndex < 1 ? "Move to Seal Console" : "Move to Threshold",
+          why: "First get into position. The mission should start because the squad is aligned enough, not because everybody clicked every helpful thing.",
+          tone: "neutral",
+          apply: () => moveOneZone(player.id, 0, `${player.callsign} moves into position at the seal.`),
+        },
+        {
+          id: "break-seal",
+          label: "Break Seal",
+          why: "This starts the mission. Once the seal breaks, every round matters.",
+          tone: "bad",
+          enabled: player.zoneIndex >= 1,
+          disabledText: "Get to the seal console first.",
+          apply: () => {
+            setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, zoneIndex: room.zones.length - 1 } : entry));
+            finishTurn("Break Seal", player.id, `${player.callsign} breaks the seal. The room stops being passive and starts reacting.`);
+          },
+        },
+        ...common,
+      ];
+    }
+
+    if (room.type === "movement") {
+      return [
+        {
+          id: "advance",
+          label: "Advance One Zone",
+          why: "You move because moving is the mission. Use this when the room is still readable.",
+          tone: "neutral",
+          apply: () => moveOneZone(player.id, 1, `${player.callsign} advances through the lock instead of wasting the first clean window.`),
+        },
+        {
+          id: "scan",
+          label: "Read the Entry",
+          why: "Good when the next move matters more than raw speed. It should not be spammed forever because the clock still burns.",
+          tone: "good",
+          enabled: player.power > 0,
+          disabledText: "Not enough power.",
+          apply: () => {
+            setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, power: clamp(entry.power - 1, 0, 6) } : entry));
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], stability: clamp(prev[currentRoomId].stability + 1, 0, 6), exposure: clamp(prev[currentRoomId].exposure - 1, 0, 8) } }));
+            finishTurn("Read the Entry", player.id, `${player.callsign} spends power to make the next move safer.`);
+          },
+        },
+        {
+          id: "cover",
+          label: "Cover the Move",
+          why: "Useful when another operator is about to move. It buys them a cleaner commit instead of piling up vanity setup.",
+          tone: "good",
+          apply: () => {
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], support: clamp(prev[currentRoomId].support + 1, 0, 2) } }));
+            finishTurn("Cover the Move", player.id, `${player.callsign} sets a cleaner line for the next operator instead of doing everything themselves.`);
+          },
+        },
+        ...common,
+      ];
+    }
+
+    if (room.type === "route") {
+      return [
+        {
+          id: "advance-cover",
+          label: "Move by Cover",
+          why: "Default good play: move, but only as hard as the room currently allows.",
+          tone: "neutral",
+          apply: () => {
+            setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, zoneIndex: clamp(entry.zoneIndex + 1, 0, room.zones.length - 1), oxygen: clamp(entry.oxygen - 2, 0, 100) } : entry));
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], exposure: clamp(prev[currentRoomId].exposure + Math.max(0, 1 - prev[currentRoomId].support - (prev[currentRoomId].sweepRead ? 1 : 0)), 0, 8), support: Math.max(0, prev[currentRoomId].support - 1) } }));
+            finishTurn("Move by Cover", player.id, `${player.callsign} moves through the spine without pretending the room is free.`);
+          },
+        },
+        {
+          id: "read-sweep",
+          label: "Read Sweep Timing",
+          why: "This is the one prep action the room actually rewards. It should help the next move, not replace the need to move.",
+          tone: "good",
+          enabled: player.power > 0 && !rs.sweepRead,
+          disabledText: rs.sweepRead ? "The sweep has already been read." : "Not enough power.",
+          apply: () => {
+            setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, power: clamp(entry.power - 1, 0, 6) } : entry));
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], sweepRead: true, stability: clamp(prev[currentRoomId].stability + 1, 0, 6), exposure: clamp(prev[currentRoomId].exposure - 1, 0, 8) } }));
+            finishTurn("Read Sweep Timing", player.id, `${player.callsign} times the sweep and buys the squad one cleaner move.`);
+          },
+        },
+        {
+          id: "cover-spine",
+          label: "Cover the Sweep Lane",
+          why: "Set support for the next move instead of having everyone greedily prep themselves.",
+          tone: "good",
+          apply: () => {
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], support: clamp(prev[currentRoomId].support + 1, 0, 2) } }));
+            finishTurn("Cover the Sweep Lane", player.id, `${player.callsign} covers the lane so the next operator can move cleaner.`);
+          },
+        },
+        ...common,
+      ];
+    }
+
+    if (room.type === "traversal") {
+      return [
+        {
+          id: "tether",
+          label: player.tethered ? "Check Tether" : "Anchor Tether",
+          why: "Forced movement kills careless squads faster than damage does. This is here to stop dumb deaths, not to look cool.",
+          tone: "good",
+          enabled: player.power > 0,
+          disabledText: "Not enough power.",
+          apply: () => {
+            setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, tethered: true, power: clamp(entry.power - 1, 0, 6) } : entry));
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], stability: clamp(prev[currentRoomId].stability + 1, 0, 6) } }));
+            finishTurn("Anchor Tether", player.id, `${player.callsign} clips in before the crossing gets a chance to punish arrogance.`);
+          },
+        },
+        {
+          id: "brace",
+          label: player.braced ? "Maintain Wing Brace" : "Wing Brace",
+          why: "Wings help you brake and stabilize here. They do not make vacuum crossing free.",
+          tone: "good",
+          enabled: player.power > 0,
+          disabledText: "Not enough power.",
+          apply: () => {
+            setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, braced: true, power: clamp(entry.power - 1, 0, 6) } : entry));
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], exposure: clamp(prev[currentRoomId].exposure - 1, 0, 8) } }));
+            finishTurn("Wing Brace", player.id, `${player.callsign} braces for control instead of pretending wings are flight.`);
+          },
+        },
+        {
+          id: "drift",
+          label: "Drift One Segment",
+          why: "You are here to cross. Setup only matters if it buys you a better commit.",
+          tone: "neutral",
+          apply: () => {
+            const protectedCrossing = player.tethered || player.braced || rs.support > 0;
+            setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, zoneIndex: clamp(entry.zoneIndex + 1, 0, room.zones.length - 1), oxygen: clamp(entry.oxygen - 4, 0, 100), stress: entry.stress + (protectedCrossing ? 0 : 1) } : entry));
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], exposure: clamp(prev[currentRoomId].exposure + (protectedCrossing ? 1 : 2), 0, 8), support: Math.max(0, prev[currentRoomId].support - 1) } }));
+            finishTurn("Drift One Segment", player.id, `${player.callsign} commits to the crossing. The room finally gets to answer back.`);
+          },
+        },
+        ...common,
+      ];
+    }
+
+    if (room.type === "combat") {
+      return [
+        {
+          id: "push-lane",
+          label: "Push One Zone",
+          why: "You move toward the actual problem instead of standing in the doorway clicking every useful button.",
+          tone: "neutral",
+          apply: () => moveOneZone(player.id, 1, `${player.callsign} pushes deeper into the room instead of trying to solve it from safety.`),
+        },
+        {
+          id: "solve-problem",
+          label: player.role === "Signal Hacker" ? "Disrupt Control Logic" : player.role === "Engineer / Tech" ? "Collapse Route Control" : "Suppress the Problem",
+          why: "Hit the thing making the room worse. Better doctrine than trying to clean out every body in sight.",
+          tone: "bad",
+          enabled: player.power > 0 || player.role === "Marksman" || player.role === "Vanguard",
+          disabledText: "No usable power left.",
+          apply: () => {
+            if (player.role === "Signal Hacker" || player.role === "Engineer / Tech") setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, power: clamp(entry.power - 1, 0, 6) } : entry));
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], problemHits: clamp(prev[currentRoomId].problemHits + 1, 0, 3) } }));
+            setPressure((prev) => clamp(prev - 1, 0, 10));
+            finishTurn("Solve the Problem", player.id, `${player.callsign} attacks the thing shaping the room instead of farming meaningless kills.`);
+          },
+        },
+        {
+          id: "secure-core",
+          label: "Secure Core",
+          why: "Only do this once the room's control problem is handled and someone has actually reached the pedestal.",
+          tone: "good",
+          enabled: player.zoneIndex >= 2 && rs.problemHits >= 2,
+          disabledText: player.zoneIndex < 2 ? "Get to the core pedestal first." : "The room's control problem is still live.",
+          apply: () => {
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], objectiveSecured: true } }));
+            finishTurn("Secure Core", player.id, `${player.callsign} secures the objective. Combat was only the middle of the mission.`);
+          },
+        },
+        {
+          id: "fall-back",
+          label: "Fall Back to Exit",
+          why: "Once the core is secure, leaving is smarter than posturing.",
+          tone: "good",
+          enabled: rs.objectiveSecured,
+          disabledText: "The objective is not secured yet.",
+          apply: () => moveOneZone(player.id, 1, `${player.callsign} starts the pullback instead of overstaying in a room that already taught its lesson.`),
+        },
+        ...common,
+      ];
+    }
+
+    if (room.type === "escape") {
+      return [
+        {
+          id: "move-objective",
+          label: "Move the Objective One Zone",
+          why: "This is the real win condition. Move the objective and the squad, not your ego.",
+          tone: "good",
+          apply: () => {
+            setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, zoneIndex: clamp(entry.zoneIndex + 1, 0, room.zones.length - 1), oxygen: clamp(entry.oxygen - 3, 0, 100) } : entry));
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], stability: clamp(prev[currentRoomId].stability + 1, 0, 6) } }));
+            finishTurn("Move the Objective", player.id, `${player.callsign} keeps extraction disciplined instead of trying to look heroic.`);
+          },
+        },
+        {
+          id: "rush",
+          label: "Rush One Extra Segment",
+          why: "Tempting when the clock is ugly. Risky because speed creates mistakes and shreds discipline.",
+          tone: "bad",
+          apply: () => {
+            setPlayers((prev) => prev.map((entry) => entry.id === player.id ? { ...entry, zoneIndex: clamp(entry.zoneIndex + 2, 0, room.zones.length - 1), oxygen: clamp(entry.oxygen - 6, 0, 100), stress: entry.stress + 1 } : entry));
+            setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], exposure: clamp(prev[currentRoomId].exposure + 2, 0, 8) } }));
+            finishTurn("Rush One Extra Segment", player.id, `${player.callsign} buys speed with future consequences. The room notices greed.`);
+          },
+        },
+        ...common,
+      ];
+    }
+
+    return [
+      {
+        id: "discipline",
+        label: "Reclip and Collapse Wings",
+        why: "This is the right call. The room appears solved, but vacuum still wins if discipline breaks.",
+        tone: "good",
+        apply: () => moveOneZone(player.id, 3, `${player.callsign} does the right thing and keeps the formation alive one more second.`),
+      },
+      {
+        id: "cut-corner",
+        label: "Cut the Corner",
+        why: "This is the tempting bad decision: the room feels won, the clock feels ugly, and discipline looks optional.",
+        tone: "bad",
+        enabled: player.zoneIndex >= 1,
+        disabledText: "Move onto the service arm first.",
+        apply: () => {
+          setRoomState((prev) => ({ ...prev, [currentRoomId]: { ...prev[currentRoomId], fatalMistake: true } }));
+          finishTurn("Cut the Corner", player.id, `${player.callsign} cuts the corner. The training run finally teaches why surviving combat was never the real objective.`);
+        },
+      },
+      ...common,
+    ];
+  };
 
   return (
     <div className="stack-large">
       <div className="hero-card theater-panel">
         <div className="hero-row">
           <div>
-            <div className="eyebrow">Dead-Zone Ops // Multiclient Foundation</div>
-            <h1 className="hero-title">Separate Player Screens + DM Control + Tutorial Map</h1>
-            <div className="hero-copy">This proves the real product architecture: each player sees only their operator view, the DM sees the control layer, and local test mode can simulate 4–6 players plus DM on one machine.</div>
+            <div className="eyebrow">Dead-Zone Ops // Multiclient Room Prototype</div>
+            <h1 className="hero-title">Per-Player UI, DM Control, and a Real Tutorial Map</h1>
+            <div className="hero-copy">This slice stays on one lane: separate device views, room-based tutorial spaces, turn cycling, and actual movement through zones instead of a shared squad dashboard clicking solved outcomes.</div>
           </div>
           <div className="status-stack">
-            <div className="pill pill-warning"><Clock3 size={14} /> Turn clock • {turnTimeLeft}s</div>
-            <div className="pill pill-dark"><AlertTriangle size={14} /> Seal {sealClock}</div>
+            <div className="pill pill-warning">Turn clock • {turnTimeLeft}s</div>
+            <div className="pill pill-dark">Round {round}</div>
+            <div className={`pill ${sealClock <= 2 ? "pill-bad" : "pill-dark"}`}>Seal {sealClock}</div>
+            <div className={`pill ${pressure >= 3 ? "pill-bad" : "pill-dark"}`}>Pressure {pressure}</div>
           </div>
         </div>
-        <div className="meter-row">
-          <StatusChip label="Active Room" value={ROOM_META[currentRoom].title} />
-          <StatusChip label="Progress" value={progress} />
-          <StatusChip label="Pressure" value={pressure} danger={pressure >= 3} />
-          <StatusChip label="Active Turn" value={players.find((player) => player.id === activeTurnId)?.callsign || "—"} />
-        </div>
       </div>
-      <TestHarness selectedClient={selectedClient} setSelectedClient={setSelectedClient} players={players} activeTurnId={activeTurnId} />
-      <LevelMap players={players} currentRoom={currentRoom} />
-      {selectedClient === "dm" ? (
-        <DmView players={players} currentRoom={currentRoom} sealClock={sealClock} progress={progress} pressure={pressure} log={log} activeTurnId={activeTurnId} turnTimeLeft={turnTimeLeft} />
-      ) : (
-        <PlayerView player={selectedPlayer} currentRoom={currentRoom} onAct={applyAction} activeTurnId={activeTurnId} turnTimeLeft={turnTimeLeft} />
-      )}
+
       <div className="panel theater-panel">
-        <div className="panel-head">
-          <div className="small-label"><Lock size={14} /> What this proves</div>
-        </div>
-        <div className="map-grid map-grid-tight">
-          <div className="sub-panel"><div className="small-label">Per-player UI</div><div className="small-copy">No shared squad dashboard as the real player experience.</div></div>
-          <div className="sub-panel"><div className="small-label">Mapped level</div><div className="small-copy">Rooms now exist as spaces with tutorial grammar instead of floating action boxes.</div></div>
-          <div className="sub-panel"><div className="small-label">Turn cycling</div><div className="small-copy">Only one operator acts at a time. The room keeps moving if people hesitate.</div></div>
-          <div className="sub-panel"><div className="small-label">Spoiler-safe guidance</div><div className="small-copy">Players get challenge language, not hidden-enemy taxonomy.</div></div>
+        <div className="small-label">Local Multi-Client Test Harness</div>
+        <div className="button-cluster">
+          <button className={`button ${selectedClient === "dm" ? "button-warning" : "button-secondary"}`} onClick={() => setSelectedClient("dm")}>DM View</button>
+          {players.map((player) => <button key={player.id} className={`button ${selectedClient === player.id ? "button-primary" : "button-secondary"}`} onClick={() => setSelectedClient(player.id)}>{player.callsign}{activeTurnId === player.id ? " • active" : ""}</button>)}
         </div>
       </div>
+
+      <div className="panel theater-panel">
+        <div className="small-label">Tutorial Level Layout</div>
+        <div className="map-grid">
+          {ROOMS.map((entry) => <div key={entry.id} className={`map-room ${entry.id === currentRoomId ? "map-room-active" : ""}`}><div className="micro-label">{entry.type}</div><div className="map-room-title">{entry.title}</div><div className="small-copy">{entry.short}</div><div className="compact-tags">{players.filter((player) => player.roomId === entry.id).map((player) => <div key={player.id} className="pill pill-dark">{player.callsign}</div>)}</div></div>)}
+        </div>
+      </div>
+
+      {selectedClient === "dm" ? (
+        <div className="panel theater-panel">
+          <div className="operator-head"><div><div className="small-label">DM View</div><h2 className="operator-name">{room.title}</h2><div className="small-copy">{room.short}</div></div><div className="pill pill-warning">Active Turn: {activePlayer.callsign} • {turnTimeLeft}s</div></div>
+          <div className="stats-grid">
+            <StatusChip label="Seal Clock" value={sealClock} danger={sealClock <= 2} />
+            <StatusChip label="Round" value={round} />
+            <StatusChip label="Pressure" value={pressure} danger={pressure >= 3} />
+            <StatusChip label="Stability" value={currentRs.stability} />
+            <StatusChip label="Exposure" value={currentRs.exposure} danger={currentRs.exposure >= 4} />
+          </div>
+          <div className="sub-panel"><div className="small-label">Room objective</div><div className="panel-copy">{room.objective}</div></div>
+          <div className="sub-panel"><div className="small-label">Live room geometry</div><div className="map-grid">{room.zones.map((zone, idx) => <div key={zone} className="map-room"><div className="map-room-title">{zone}</div><div className="compact-tags">{roomPlayers.filter((player) => player.zoneIndex === idx).map((player) => <div key={player.id} className={`pill ${laneTone(player.lane)}`}>{player.callsign}</div>)}</div></div>)}</div></div>
+          <div className="dm-grid">
+            <div className="sub-panel"><div className="small-label">Operator telemetry</div><div className="stack">{players.map((player) => <div key={player.id} className="crew-list-card"><div className="crew-list-head"><div><div className="crew-name">{player.callsign}</div><div className="small-copy">{player.role} • {room.zones[Math.min(player.zoneIndex, room.zones.length - 1)]}</div></div><div className={`pill ${laneTone(player.lane)}`}>{player.lane}</div></div><div className="meter-row"><div className="pill pill-dark">HP {player.hp}</div><div className="pill pill-dark">O₂ {player.oxygen}</div><div className="pill pill-dark">PWR {player.power}</div><div className="pill pill-dark">Heat {player.heat}</div></div></div>)}</div></div>
+            <div className="sub-panel"><div className="small-label">Event log</div><div className="stack">{log.map((entry, idx) => <div key={idx} className="log-entry">{entry}</div>)}</div></div>
+          </div>
+        </div>
+      ) : (
+        <div className="panel theater-panel">
+          <div className="operator-head"><div><div className="small-label">Player View</div><h2 className="operator-name">{visiblePlayer.callsign}</h2><div className={`small-copy ${laneTone(visiblePlayer.lane)}`}>{visiblePlayer.role} • {visiblePlayer.family}</div></div><div className={`pill ${visiblePlayer.id === activeTurnId && !missionEnded ? "pill-good" : "pill-dark"}`}>{visiblePlayer.id === activeTurnId && !missionEnded ? `Your turn • ${turnTimeLeft}s` : "Waiting"}</div></div>
+          <div className="stats-grid">
+            <StatusChip label="Room" value={room.title} />
+            <StatusChip label="HP" value={visiblePlayer.hp} danger={visiblePlayer.hp <= 6} />
+            <StatusChip label="Oxygen" value={visiblePlayer.oxygen} danger={visiblePlayer.oxygen <= 40} />
+            <StatusChip label="Power" value={visiblePlayer.power} danger={visiblePlayer.power <= 1} />
+            <StatusChip label="Seal" value={sealClock} danger={sealClock <= 2} />
+          </div>
+          <div className="sub-panel"><div className="small-label">What this room is teaching</div><div className="panel-copy">{room.lesson}</div></div>
+          <div className="sub-panel"><div className="small-label">Objective</div><div className="panel-copy">{room.objective}</div></div>
+          <div className="sub-panel"><div className="small-label">Your current position</div><div className="map-grid">{room.zones.map((zone, idx) => <div key={zone} className={`map-room ${idx === visiblePlayer.zoneIndex ? "map-room-active" : ""}`}><div className="map-room-title">{zone}</div></div>)}</div><div className="compact-tags"><div className={`pill ${laneTone(visiblePlayer.lane)}`}>{visiblePlayer.lane}</div>{visiblePlayer.tethered && <div className="pill pill-good">Tethered</div>}{visiblePlayer.braced && <div className="pill pill-info">Braced</div>}<div className="pill pill-dark">{visiblePlayer.suit}</div><div className="pill pill-dark">{visiblePlayer.weapon}</div></div></div>
+          <div className="sub-panel"><div className="small-label">Room state you can feel</div><div className="meter-row"><div className="pill pill-dark">Stability {currentRs.stability}</div><div className={`pill ${currentRs.exposure >= 4 ? "pill-bad" : "pill-dark"}`}>Exposure {currentRs.exposure}</div><div className="pill pill-dark">Support {currentRs.support}</div></div></div>
+          <div className="sub-panel"><div className="small-label">Comms</div><div className="stack">{players.filter((player) => player.id !== visiblePlayer.id).map((player) => <div key={player.id} className="log-entry">{player.callsign}: {ROOM_BY_ID[player.roomId].title} // {ROOM_BY_ID[player.roomId].zones[player.zoneIndex]}</div>)}</div></div>
+          <div className="stack-large"><div className="small-label">Your actions</div>{currentActions(visiblePlayer).map((action) => <div key={action.id} className={toneClass(action.tone)}><div className="route-head"><div><div className="route-title">{action.label}</div><div className="small-copy">{action.why}</div>{action.enabled === false && <div className="danger-note">{action.disabledText || "Unavailable right now."}</div>}</div><button className={`button ${visiblePlayer.id === activeTurnId && action.enabled !== false && !missionEnded ? "button-primary" : "button-secondary"}`} disabled={visiblePlayer.id !== activeTurnId || action.enabled === false || missionEnded} onClick={action.apply}>Commit</button></div></div>)}</div>
+        </div>
+      )}
+
+      {missionEnded && <div className="panel theater-panel" style={{ borderColor: "rgba(248,113,113,.5)" }}><div className="small-label">Tutorial Lesson</div><h2 className="operator-name">You survived the room. Space killed you anyway.</h2><div className="panel-copy">The squad dies because one final extraction decision treated vacuum like flavor instead of a lethal rule. This campaign is about getting out alive, not just winning the fight in front of you.</div><div className="button-cluster" style={{ marginTop: 16 }}><button className="button button-primary" onClick={resetRun}>Reset Training Run</button></div></div>}
     </div>
   );
+}
+
+function StatusChip({ label, value, danger = false }: { label: string; value: string | number; danger?: boolean }) {
+  return <div className={`header-stat ${danger ? "status-danger" : ""}`}><div className="header-stat-label">{label}</div><div className="header-stat-value">{value}</div></div>;
 }
