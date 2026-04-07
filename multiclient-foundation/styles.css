@@ -64,6 +64,8 @@ h2 { font-size: 1.8rem; }
 .node-special { box-shadow: 0 0 0 1px rgba(245,158,11,.18) inset, var(--shadow); }
 .node-you { box-shadow: 0 0 0 2px rgba(52,211,153,.45) inset, var(--shadow); }
 .node-adjacent { outline: 1px dashed rgba(56,189,248,.35); }
+.node-hidden { opacity: .42; filter: saturate(.4); }
+.token-teammate { background: rgba(56,189,248,.12); color:#dbeafe; border-color: rgba(56,189,248,.3); }
 .node-title { font-size: .95rem; font-weight: 700; }
 .node-tags { margin-top: 6px; color: var(--muted); font-size: .72rem; min-height: 18px; }
 .token-stack { margin-top: 10px; display:flex; flex-wrap:wrap; gap:6px; }

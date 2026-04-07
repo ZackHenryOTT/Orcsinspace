@@ -212,6 +212,53 @@ function adjacentNodes(player) {
   return room.nodes.filter((node) => isAdjacent(room, player.nodeId, node.id));
 }
 
+function graphDistance(room, start, end) {
+  if (start === end) return 0;
+  const seen = new Set([start]);
+  const queue = [[start, 0]];
+  while (queue.length) {
+    const [cur, dist] = queue.shift();
+    const neighbors = room.edges.flatMap(([a,b]) => a === cur ? [b] : b === cur ? [a] : []);
+    for (const next of neighbors) {
+      if (seen.has(next)) continue;
+      if (next === end) return dist + 1;
+      seen.add(next);
+      queue.push([next, dist + 1]);
+    }
+  }
+  return Infinity;
+}
+
+function hasLineOfSight(viewer, teammate, room = activeRoom()) {
+  if (!viewer || !teammate || viewer.roomId !== teammate.roomId) return false;
+  const distance = graphDistance(room, viewer.nodeId, teammate.nodeId);
+  if (distance <= 1) return true;
+  const viewerNode = nodeById(room, viewer.nodeId);
+  const mateNode = nodeById(room, teammate.nodeId);
+  const openViewer = viewerNode.tags.includes('exposed') || viewerNode.tags.includes('objective') || viewerNode.tags.includes('control');
+  const openMate = mateNode.tags.includes('exposed') || mateNode.tags.includes('objective') || mateNode.tags.includes('control');
+  return distance === 2 && openViewer && openMate;
+}
+
+function visibleTeammates(viewer) {
+  const room = ROOM_BY_ID[viewer.roomId];
+  return state.players.filter((p) => p.id !== viewer.id && hasLineOfSight(viewer, p, room));
+}
+
+function visibleNodesForPlayer(viewer, room = activeRoom()) {
+  const set = new Set([viewer.nodeId]);
+  room.nodes.forEach((node) => {
+    if (graphDistance(room, viewer.nodeId, node.id) <= 1) set.add(node.id);
+  });
+  visibleTeammates(viewer).forEach((mate) => {
+    set.add(mate.nodeId);
+    room.nodes.forEach((node) => {
+      if (graphDistance(room, mate.nodeId, node.id) <= 1) set.add(node.id);
+    });
+  });
+  return set;
+}
+
 function roomComplete(roomId = state.currentRoomId) {
   const room = ROOM_BY_ID[roomId];
   const rs = roomState(roomId);
@@ -542,9 +589,19 @@ function actorActions(player) {
 }
 
 function visibleComms(viewer) {
-  return state.players
-    .filter((p) => p.id !== viewer.id)
-    .map((p) => `${p.callsign}: ${ROOM_BY_ID[p.roomId].title} // ${nodeById(ROOM_BY_ID[p.roomId], p.nodeId).label}`);
+  return visibleTeammates(viewer).map((p) => `${p.callsign}: ${nodeById(ROOM_BY_ID[p.roomId], p.nodeId).label} // ${p.role}`);
+}
+
+function playerLocalObjective(player) {
+  const room = activeRoom();
+  const here = nodeById(room, player.nodeId);
+  if (room.type === 'briefing') return here.id === 'console' ? 'Break the seal or move to the threshold once the squad is ready.' : 'Move toward the console or threshold.';
+  if (room.type === 'movement') return here.id === 'inner' ? 'Open the inner lock or cover the next move.' : 'Advance through the lock without wasting turns.';
+  if (room.type === 'route') return here.tags.includes('control') ? 'Read the sweep or push to the next cover pocket.' : 'Take ground toward far cover. Do not stall.';
+  if (room.type === 'traversal') return here.tags.includes('anchor') ? 'Anchor or support the crossing from this side.' : here.tags.includes('brace') ? 'Brace and help others cross.' : 'Cross without getting dragged into vacuum.';
+  if (room.type === 'combat') return here.tags.includes('problem') ? 'Solve the room problem from here.' : here.tags.includes('objective') ? 'Secure the core if the room problem is handled.' : 'Advance to the position your role actually needs.';
+  if (room.type === 'escape') return 'Move to the junction or stabilize the route for the next operator.';
+  return here.tags.includes('decision') ? 'Choose discipline or greed.' : 'Get to the safe clamp.';
 }
 
 function pillClass(type) {
@@ -578,12 +635,13 @@ function tokensAt(roomId, nodeId) {
 
 function renderBoard(room, perspective = 'dm', player = null) {
   const rs = roomState(room.id);
+  const visibleNodes = perspective === 'player' && player ? visibleNodesForPlayer(player, room) : new Set(room.nodes.map((n) => n.id));
   return `
     <div class="board-wrap">
       <div class="board-header">
         <div>
-          <div class="panel-label">${perspective === 'dm' ? 'Live room board' : 'Your room board'}</div>
-          <div class="panel-copy">${room.objective}</div>
+          <div class="panel-label">${perspective === 'dm' ? 'Live room board' : 'Your local room board'}</div>
+          <div class="panel-copy">${perspective === 'dm' ? room.objective : playerLocalObjective(player)}</div>
         </div>
         <div class="pill-row">
           <span class="${pillClass(state.sealClock <= 2 ? 'bad' : 'dark')}">Seal ${state.sealClock}</span>
@@ -595,7 +653,8 @@ function renderBoard(room, perspective = 'dm', player = null) {
       <div class="room-board">
         <svg class="board-lines" viewBox="0 0 100 100" preserveAspectRatio="none">${edgeSvg(room)}</svg>
         ${room.nodes.map((node) => {
-          const tokens = tokensAt(room.id, node.id);
+          const hidden = perspective === 'player' && player && !visibleNodes.has(node.id);
+          const tokens = (hidden ? [] : tokensAt(room.id, node.id)).filter((t) => perspective === 'dm' || t.id === player.id || hasLineOfSight(player, t, room));
           const you = player && player.nodeId === node.id;
           const adjacent = player ? isAdjacent(room, player.nodeId, node.id) : false;
           const classes = ['board-node'];
@@ -604,10 +663,11 @@ function renderBoard(room, perspective = 'dm', player = null) {
           if (node.tags.includes('objective') || node.tags.includes('control') || node.tags.includes('decision')) classes.push('node-special');
           if (you) classes.push('node-you');
           if (adjacent) classes.push('node-adjacent');
+          if (hidden) classes.push('node-hidden');
           return `<div class="${classes.join(' ')}" style="left:${node.x}%; top:${node.y}%">
-            <div class="node-title">${node.label}</div>
-            <div class="node-tags">${node.tags.filter((t)=>!['start'].includes(t)).join(' • ')}</div>
-            <div class="token-stack">${tokens.map((t)=>`<span class="token ${player && t.id===player.id ? 'token-you' : ''}">${t.callsign.replace('Operator ','O')}</span>`).join('')}</div>
+            <div class="node-title">${hidden ? 'Unknown' : node.label}</div>
+            <div class="node-tags">${hidden ? 'out of sight' : node.tags.filter((t)=>!['start'].includes(t)).join(' • ')}</div>
+            <div class="token-stack">${tokens.map((t)=>`<span class="token ${player && t.id===player.id ? 'token-you' : 'token-teammate'}">${t.callsign.replace('Operator ','O')}</span>`).join('')}</div>
           </div>`;
         }).join('')}
       </div>
@@ -619,6 +679,7 @@ function renderPlayerView(player) {
   const node = nodeById(room, player.nodeId);
   const isActive = player.id === activeTurnId();
   const actions = actorActions(player);
+  const teammates = visibleTeammates(player);
   return `
     <section class="panel player-panel">
       <div class="panel-head operator-head">
@@ -636,10 +697,10 @@ function renderPlayerView(player) {
         <div class="stat-card ${player.power <= 1 ? 'danger' : ''}"><div class="micro">Power</div><div class="stat-value">${player.power}</div></div>
         <div class="stat-card"><div class="micro">Position</div><div class="stat-value">${node.label}</div></div>
       </div>
-      <div class="sub-panel"><div class="panel-label">What this room is teaching</div><div class="panel-copy">${room.lesson}</div></div>
+      <div class="sub-panel"><div class="panel-label">What you need to solve right now</div><div class="panel-copy">${playerLocalObjective(player)}</div></div>
       ${renderBoard(room, 'player', player)}
       <div class="sub-panel"><div class="panel-label">Your kit</div><div class="pill-row"><span class="pill ${laneClass(player.lane)}">${player.lane}</span><span class="pill pill-dark">${player.suit}</span><span class="pill pill-dark">${player.weapon}</span>${player.tethered ? '<span class="pill pill-good">Tethered</span>' : ''}${player.braced ? '<span class="pill pill-info">Braced</span>' : ''}</div></div>
-      <div class="sub-panel"><div class="panel-label">Comms</div><div class="stack-small">${visibleComms(player).map((line)=>`<div class="log-entry">${line}</div>`).join('')}</div></div>
+      <div class="sub-panel"><div class="panel-label">Teammates in line of sight</div>${teammates.length ? `<div class="stack-small">${teammates.map((mate)=>`<div class="log-entry"><strong>${mate.callsign}</strong> // ${nodeById(room, mate.nodeId).label} // visible but not controllable</div>`).join('')}</div>` : '<div class="panel-copy">No teammate is currently in your line of sight.</div>'}</div>
       <div class="stack-small"><div class="panel-label">Actions from where you stand</div>${actions.map((action)=>{
         const enabled = action.enabled !== false;
         return `<div class="action-card ${toneClass(action.tone)}"><div class="action-head"><div><div class="action-title">${action.label}</div><div class="action-why">${action.why}</div>${!enabled ? `<div class="warn">${action.disabledText || 'Unavailable right now.'}</div>` : ''}</div><button class="button ${isActive && enabled && !state.missionEnded ? 'button-primary' : 'button-secondary'}" ${isActive && enabled && !state.missionEnded ? `data-action="${action.id}" data-player="${player.id}"` : 'disabled'}>Commit</button></div></div>`;
@@ -702,8 +763,7 @@ function render() {
         </div>
       </div>
       <section class="panel harness-panel"><div class="panel-label">Local Multi-Client Test Harness</div><div class="button-row"><button class="button ${state.selectedClient==='dm' ? 'button-warning' : 'button-secondary'}" data-client="dm">DM View</button>${state.players.map((p)=>`<button class="button ${state.selectedClient===p.id ? 'button-primary' : 'button-secondary'}" data-client="${p.id}">${p.callsign}${activeTurnId()===p.id ? ' • active' : ''}</button>`).join('')}</div></section>
-      <section class="panel map-panel"><div class="panel-label">Tutorial Level Grammar</div>${renderMiniLevelMap()}</section>
-      ${state.selectedClient === 'dm' ? renderDmView() : renderPlayerView(selected)}
+      ${state.selectedClient === 'dm' ? `<section class=\"panel map-panel\"><div class=\"panel-label\">Tutorial Level Grammar</div>${renderMiniLevelMap()}</section>${renderDmView()}` : renderPlayerView(selected)}
       ${renderLessonOverlay()}
     </div>`;
 
