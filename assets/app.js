@@ -27,24 +27,54 @@ function parseRoom({ key: roomKey, title, subtitle, cols, rows, floor, features,
   return { key: roomKey, title, subtitle, cols, rows, floors: setFromCoords(floor), features, starts, steps, nextKey };
 }
 
+
 const ROOMS = {
   dock: parseRoom({
-    key: 'dock', title: 'Dock Collar', subtitle: 'Last safe room. Learn that a body must physically reach the control pad.', cols: 20, rows: 12,
-    floor: [...rect(1,2,14,8), ...rect(15,4,18,6), ...rect(5,1,8,2), ...rect(5,8,8,9)],
-    features: { [key(9,4)]: 'seal', [key(10,4)]: 'seal', [key(9,5)]: 'seal', [key(10,5)]: 'seal', [key(16,4)]: 'exit', [key(17,4)]: 'exit', [key(16,5)]: 'exit', [key(17,5)]: 'exit', [key(5,2)]: 'cover', [key(6,2)]: 'cover', [key(5,8)]: 'cover', [key(6,8)]: 'cover' },
-    starts: [{x:2,y:3},{x:4,y:3},{x:2,y:6},{x:4,y:6},{x:6,y:3},{x:6,y:6}],
+    key: 'dock',
+    title: 'Dock Collar',
+    subtitle: 'Last safe room. Learn that a dragon body must physically reach the pad before anything starts.',
+    cols: 20,
+    rows: 12,
+    floor: [
+      ...rect(1, 2, 14, 9),
+      ...rect(14, 4, 18, 7),
+    ],
+    features: {
+      [key(9,4)]: 'seal', [key(10,4)]: 'seal', [key(9,5)]: 'seal', [key(10,5)]: 'seal',
+      [key(17,4)]: 'exit', [key(18,4)]: 'exit', [key(17,5)]: 'exit', [key(18,5)]: 'exit',
+      [key(5,3)]: 'cover', [key(5,4)]: 'cover', [key(5,7)]: 'cover', [key(5,8)]: 'cover',
+    },
+    starts: [
+      { x: 2, y: 3 }, { x: 2, y: 6 }, { x: 5, y: 6 }, { x: 8, y: 6 }, { x: 11, y: 6 }, { x: 2, y: 8 },
+    ],
     steps: [
       { id:'dock-seal-move', type:'move', actor:0, targetFeature:'seal', label:'Lesson 1A', title:'Walk a real body to the seal pad', why:'Nothing starts because a button exists. Somebody physically reaches the pad first.', wrong:'Treating the board like flavor text around a menu.', doNow:'Move Operator 1 until their body overlaps the seal pad.' },
       { id:'dock-seal-act', type:'action', actor:0, actionId:'breakSeal', feature:'seal', button:'Break Seal', title:'Start the mission from the pad', why:'Room state changes only when the operator is in the correct space and commits there.', wrong:'Thinking mission start is narration instead of a threshold.', doNow:'Use Break Seal from the pad.' },
       { id:'dock-exit-move', type:'move', actor:0, targetFeature:'exit', label:'Lesson 1B', title:'Move to the airlock threshold', why:'Solving one station element does not move the squad by magic. Bodies still cross space.', wrong:'Assuming panel success equals room success.', doNow:'Walk Operator 1 to the airlock threshold.' },
       { id:'dock-exit-act', type:'action', actor:0, actionId:'advanceRoom', feature:'exit', button:'Advance Team', title:'Push into the next room', why:'The board itself decides when the next room begins.', wrong:'Looking for a next-room tab.', doNow:'Advance the team through the opened threshold.' },
-    ], nextKey:'entry'
+    ],
+    nextKey:'entry'
   }),
   entry: parseRoom({
-    key: 'entry', title: 'Entry Lock', subtitle: 'Read before you touch the hatch. Information is a real action.', cols: 22, rows: 12,
-    floor: [...rect(1,4,18,7), ...rect(6,1,10,4), ...rect(14,7,20,10)],
-    features: { [key(8,2)]: 'panel', [key(9,2)]: 'panel', [key(8,3)]: 'panel', [key(9,3)]: 'panel', [key(16,7)]: 'hatch', [key(17,7)]: 'hatch', [key(16,8)]: 'hatch', [key(17,8)]: 'hatch', [key(19,8)]: 'exit', [key(20,8)]: 'exit', [key(19,9)]: 'exit', [key(20,9)]: 'exit', [key(4,4)]: 'cover', [key(4,5)]: 'cover', [key(12,7)]: 'cover', [key(12,6)]: 'cover' },
-    starts: [{x:2,y:5},{x:6,y:5},{x:2,y:8},{x:6,y:8},{x:10,y:5},{x:10,y:8}],
+    key: 'entry',
+    title: 'Entry Lock',
+    subtitle: 'Read before you touch the hatch. Information is a real action, and roles chain through space.',
+    cols: 22,
+    rows: 12,
+    floor: [
+      ...rect(1, 4, 16, 8),
+      ...rect(6, 1, 11, 4),
+      ...rect(15, 6, 20, 10),
+    ],
+    features: {
+      [key(8,2)]: 'panel', [key(9,2)]: 'panel', [key(8,3)]: 'panel', [key(9,3)]: 'panel',
+      [key(16,7)]: 'hatch', [key(17,7)]: 'hatch', [key(16,8)]: 'hatch', [key(17,8)]: 'hatch',
+      [key(19,7)]: 'exit', [key(20,7)]: 'exit', [key(19,8)]: 'exit', [key(20,8)]: 'exit',
+      [key(4,5)]: 'cover', [key(4,6)]: 'cover', [key(12,6)]: 'cover', [key(12,7)]: 'cover',
+    },
+    starts: [
+      { x: 2, y: 5 }, { x: 6, y: 5 }, { x: 2, y: 8 }, { x: 6, y: 8 }, { x: 10, y: 8 }, { x: 12, y: 8 },
+    ],
     steps: [
       { id:'entry-panel-move', type:'move', actor:1, targetFeature:'panel', label:'Lesson 2A', title:'Move the hacker to the scan panel', why:'Sometimes the correct first move is information, not velocity.', wrong:'Charging the hatch because it looks like progress.', doNow:'Move Operator 2 to the upper scan panel.' },
       { id:'entry-panel-act', type:'action', actor:1, actionId:'readPanel', feature:'panel', button:'Read Panel', title:'Read before you open', why:'Reading now prevents stupid commitment later.', wrong:'Touching the hatch blind.', doNow:'Use Read Panel.' },
@@ -52,26 +82,56 @@ const ROOMS = {
       { id:'entry-hatch-act', type:'action', actor:0, actionId:'cycleHatch', feature:'hatch', button:'Cycle Hatch', title:'Cycle once the read is clean', why:'Good teams chain roles together through space.', wrong:'Treating squad roles like flavor instead of sequence.', doNow:'Cycle the hatch and push the room forward.' },
       { id:'entry-exit-move', type:'move', actor:0, targetFeature:'exit', label:'Lesson 2C', title:'Cross the lock instead of staring at it', why:'The room is not solved until a body is through the geometry.', wrong:'Thinking opening the hatch ends the room.', doNow:'Move through the hatch and reach the next threshold.' },
       { id:'entry-exit-act', type:'action', actor:0, actionId:'advanceRoom', feature:'exit', button:'Advance Team', title:'Leave the lock behind', why:'Tutorial rooms teach through spaces. You still have to physically clear them.', wrong:'Waiting for the game to transition automatically.', doNow:'Advance into Sensor Spine.' },
-    ], nextKey:'spine'
+    ],
+    nextKey:'spine'
   }),
   spine: parseRoom({
-    key: 'spine', title: 'Sensor Spine', subtitle: 'Long sightlines, sparse cover, and one console that matters.', cols: 24, rows: 12,
-    floor: [...rect(1,4,20,7), ...rect(8,1,12,4), ...rect(13,7,16,10), ...rect(20,5,22,7)],
-    features: { [key(10,2)]: 'panel', [key(11,2)]: 'panel', [key(10,3)]: 'panel', [key(11,3)]: 'panel', [key(5,4)]: 'cover', [key(5,5)]: 'cover', [key(15,8)]: 'cover', [key(15,9)]: 'cover', [key(18,5)]: 'hazard', [key(18,6)]: 'hazard', [key(19,5)]: 'hazard', [key(19,6)]: 'hazard', [key(21,5)]: 'exit', [key(22,5)]: 'exit', [key(21,6)]: 'exit', [key(22,6)]: 'exit' },
-    starts: [{x:2,y:5},{x:4,y:5},{x:2,y:8},{x:4,y:8},{x:6,y:5},{x:6,y:8}],
+    key: 'spine',
+    title: 'Sensor Spine',
+    subtitle: 'Long sightlines, sparse cover, and one console that matters.',
+    cols: 24,
+    rows: 12,
+    floor: [
+      ...rect(1, 4, 22, 8),
+      ...rect(8, 1, 13, 4),
+      ...rect(13, 8, 17, 10),
+    ],
+    features: {
+      [key(10,2)]: 'panel', [key(11,2)]: 'panel', [key(10,3)]: 'panel', [key(11,3)]: 'panel',
+      [key(5,4)]: 'cover', [key(5,5)]: 'cover', [key(15,8)]: 'cover', [key(16,8)]: 'cover', [key(15,9)]: 'cover', [key(16,9)]: 'cover',
+      [key(18,5)]: 'hazard', [key(18,6)]: 'hazard', [key(19,5)]: 'hazard', [key(19,6)]: 'hazard',
+      [key(21,5)]: 'exit', [key(22,5)]: 'exit', [key(21,6)]: 'exit', [key(22,6)]: 'exit',
+    },
+    starts: [
+      { x: 2, y: 5 }, { x: 8, y: 4 }, { x: 12, y: 8 }, { x: 2, y: 8 }, { x: 5, y: 8 }, { x: 8, y: 8 },
+    ],
     steps: [
       { id:'spine-panel-move', type:'move', actor:1, targetFeature:'panel', label:'Lesson 3A', title:'Reach the sweep console', why:'This corridor punishes hesitation, so the first question is where the information lives.', wrong:'Stacking everyone in the lane before anyone learns the room.', doNow:'Move Operator 2 to the sweep console.' },
       { id:'spine-panel-act', type:'action', actor:1, actionId:'readSweep', feature:'panel', button:'Read Sweep', title:'Solve the corridor before the corridor solves you', why:'You spend one action to avoid spending the whole squad on panic.', wrong:'Treating every room like pure movement speed.', doNow:'Use Read Sweep.' },
       { id:'spine-cover-move', type:'move', actor:2, targetFeature:'cover', label:'Lesson 3B', title:'Occupy the first protected lane', why:'Cover is a spatial answer, not a statistic on a sheet.', wrong:'Walking the marksman down the center because it is the shortest line.', doNow:'Move Operator 3 into the lower cover pocket.' },
       { id:'spine-exit-move', type:'move', actor:2, targetFeature:'exit', label:'Lesson 3C', title:'Cross only after you understand the lane', why:'Fast is good only after the room is legible.', wrong:'Trying to force perfect setup forever.', doNow:'Push Operator 3 to the far threshold.' },
       { id:'spine-exit-act', type:'action', actor:2, actionId:'advanceRoom', feature:'exit', button:'Advance Team', title:'Carry the squad through the spine', why:'The room is won by getting bodies through it, not by admiring your setup.', wrong:'Confusing preparation with completion.', doNow:'Advance into Crosswind Gap.' },
-    ], nextKey:'gap'
+    ],
+    nextKey:'gap'
   }),
   gap: parseRoom({
-    key:'gap', title:'Crosswind Gap', subtitle:'This is the first true traversal room. Open space punishes arrogance.', cols:24, rows:14,
-    floor:[...rect(1,4,7,9),...rect(8,6,12,7),...rect(13,4,20,9),...rect(20,5,22,8),...rect(5,2,6,4),...rect(15,9,16,11)],
-    features:{ [key(6,6)]:'anchor',[key(6,7)]:'anchor', [key(9,6)]:'hazard',[key(10,6)]:'hazard',[key(11,6)]:'hazard',[key(9,7)]:'hazard',[key(10,7)]:'hazard',[key(11,7)]:'hazard', [key(15,5)]:'brace',[key(16,5)]:'brace',[key(15,6)]:'brace',[key(16,6)]:'brace', [key(21,6)]:'exit',[key(22,6)]:'exit',[key(21,7)]:'exit',[key(22,7)]:'exit' },
-    starts:[{x:2,y:5},{x:2,y:8},{x:4,y:5},{x:4,y:8},{x:1,y:5},{x:1,y:8}],
+    key:'gap',
+    title:'Crosswind Gap',
+    subtitle:'This is the first true traversal room. Open space punishes arrogance.',
+    cols:24,
+    rows:14,
+    floor:[
+      ...rect(1,4,8,10),
+      ...rect(8,6,14,8),
+      ...rect(14,4,22,10),
+    ],
+    features:{
+      [key(6,6)]:'anchor',[key(7,6)]:'anchor',[key(6,7)]:'anchor',[key(7,7)]:'anchor',
+      [key(10,6)]:'hazard',[key(11,6)]:'hazard',[key(10,7)]:'hazard',[key(11,7)]:'hazard',
+      [key(16,5)]:'brace',[key(17,5)]:'brace',[key(16,6)]:'brace',[key(17,6)]:'brace',
+      [key(21,6)]:'exit',[key(22,6)]:'exit',[key(21,7)]:'exit',[key(22,7)]:'exit'
+    },
+    starts:[{x:2,y:5},{x:2,y:8},{x:5,y:8},{x:8,y:8},{x:1,y:8},{x:1,y:5} ],
     steps:[
       { id:'gap-anchor-move', type:'move', actor:0, targetFeature:'anchor', label:'Lesson 4A', title:'Move to the anchor point first', why:'Vacuum traversal starts with where you stand, not with heroic confidence.', wrong:'Stepping onto the broken span just because it is visually obvious.', doNow:'Move Operator 1 to the anchor point.' },
       { id:'gap-anchor-act', type:'action', actor:0, actionId:'anchorTether', feature:'anchor', button:'Anchor Tether', title:'Make the crossing doctrine instead of panic', why:'The tether is the difference between a crossing and a bad story.', wrong:'Treating support actions like optional flavor.', doNow:'Anchor the tether.' },
@@ -81,10 +141,23 @@ const ROOMS = {
     ], nextKey:'core'
   }),
   core: parseRoom({
-    key:'core', title:'Signal Core Room', subtitle:'Objective first. The room is not about standing in the middle and posing.', cols:22, rows:14,
-    floor:[...rect(1,3,18,10),...rect(7,1,12,3),...rect(18,5,20,8),...rect(8,10,12,12)],
-    features:{ [key(10,6)]:'objective',[key(11,6)]:'objective',[key(10,7)]:'objective',[key(11,7)]:'objective', [key(5,3)]:'cover',[key(5,4)]:'cover',[key(15,9)]:'cover',[key(15,10)]:'cover', [key(19,6)]:'exit',[key(20,6)]:'exit',[key(19,7)]:'exit',[key(20,7)]:'exit' },
-    starts:[{x:2,y:5},{x:2,y:8},{x:5,y:5},{x:5,y:8},{x:1,y:5},{x:1,y:8}],
+    key:'core',
+    title:'Signal Core Room',
+    subtitle:'Objective first. The room is not about standing in the middle and posing.',
+    cols:22,
+    rows:14,
+    floor:[
+      ...rect(1,3,18,10),
+      ...rect(7,1,12,3),
+      ...rect(18,5,20,8),
+      ...rect(8,10,12,12),
+    ],
+    features:{
+      [key(10,6)]:'objective',[key(11,6)]:'objective',[key(10,7)]:'objective',[key(11,7)]:'objective',
+      [key(5,3)]:'cover',[key(5,4)]:'cover',[key(15,9)]:'cover',[key(15,10)]:'cover',
+      [key(19,6)]:'exit',[key(20,6)]:'exit',[key(19,7)]:'exit',[key(20,7)]:'exit'
+    },
+    starts:[{x:2,y:5},{x:2,y:8},{x:5,y:8},{x:5,y:5},{x:8,y:8},{x:8,y:5} ],
     steps:[
       { id:'core-objective-move', type:'move', actor:0, targetFeature:'objective', label:'Lesson 5A', title:'Go to the objective instead of the room center', why:'The mission is not to stand where the room looks dramatic. It is to touch the thing that matters.', wrong:'Treating the room like a fight arena first and an objective room second.', doNow:'Move Operator 1 to the core pedestal.' },
       { id:'core-objective-act', type:'action', actor:0, actionId:'secureCore', feature:'objective', button:'Secure Core', title:'The objective is the mission', why:'This is the lesson the whole tutorial has been building toward.', wrong:'Thinking combat is the win condition.', doNow:'Secure the core.' },
@@ -93,16 +166,30 @@ const ROOMS = {
     ], nextKey:'extract'
   }),
   extract: parseRoom({
-    key:'extract', title:'Extraction Run', subtitle:'The room is solved only when bodies leave it alive.', cols:22, rows:14,
-    floor:[...rect(1,4,18,8),...rect(18,5,20,8),...rect(9,8,12,10),...rect(4,2,7,4)],
-    features:{ [key(19,6)]:'exit',[key(20,6)]:'exit',[key(19,7)]:'exit',[key(20,7)]:'exit', [key(6,3)]:'cover',[key(6,4)]:'cover', [key(14,4)]:'hazard',[key(14,5)]:'hazard',[key(15,4)]:'hazard',[key(15,5)]:'hazard' },
-    starts:[{x:2,y:5},{x:4,y:5},{x:2,y:8},{x:4,y:8},{x:6,y:5},{x:6,y:8}],
+    key:'extract',
+    title:'Extraction Run',
+    subtitle:'The mission ends when bodies leave it alive with the objective.',
+    cols:24,
+    rows:12,
+    floor:[
+      ...rect(1,4,20,8),
+      ...rect(8,1,12,4),
+      ...rect(13,8,17,10),
+      ...rect(20,5,22,8),
+    ],
+    features:{
+      [key(10,2)]:'cover',[key(10,3)]:'cover',[key(14,8)]:'cover',[key(14,9)]:'cover',
+      [key(15,4)]:'hazard',[key(16,4)]:'hazard',[key(15,5)]:'hazard',[key(16,5)]:'hazard',
+      [key(21,5)]:'exit',[key(22,5)]:'exit',[key(21,6)]:'exit',[key(22,6)]:'exit'
+    },
+    starts:[{x:2,y:5},{x:2,y:8},{x:5,y:8},{x:8,y:8},{x:5,y:5},{x:8,y:5} ],
     steps:[
       { id:'extract-exit-move', type:'move', actor:0, targetFeature:'exit', label:'Lesson 6A', title:'Run the way out like it still matters', why:'This is the final correction: extraction is the climax, not cleanup.', wrong:'Mentally ending the mission because the objective is secured.', doNow:'Move Operator 1 to the final threshold.' },
       { id:'extract-exit-act', type:'action', actor:0, actionId:'finishTraining', feature:'exit', button:'Complete Tutorial', title:'End the tutorial with the right lesson', why:'The mission ends when bodies clear the board with the objective, not when a room says nice things about you.', wrong:'Confusing local success with total success.', doNow:'Complete the tutorial.' },
     ], nextKey:null
   })
 };
+
 
 function createEmptyState() {
   return {
@@ -286,6 +373,8 @@ function advanceStep() {
     state.roomStep += 1;
     resetTurn();
     const step = currentStep();
+    state.activePlayerIndex = clamp(step.actor, 0, state.players.length - 1);
+    state.selectedClient = state.players[state.activePlayerIndex]?.id || 'dm';
     state.log.unshift(`${step.label}: ${step.title}`);
     saveState(); render(); return;
   }
@@ -293,6 +382,9 @@ function advanceStep() {
     state.roomKey = room.nextKey;
     state.roomStep = 0;
     placePlayersForRoom(room.nextKey);
+    const step = currentStep();
+    state.activePlayerIndex = clamp(step.actor, 0, state.players.length - 1);
+    state.selectedClient = state.players[state.activePlayerIndex]?.id || 'dm';
     state.log.unshift(`Room advanced: ${ROOMS[room.nextKey].title}`);
     saveState(); render(); return;
   }
@@ -338,9 +430,16 @@ function performAction(actionId) {
   if (actionId === 'anchorTether') state.roomFlags.gap.tetherAnchored = true;
   if (actionId === 'secureCore') state.roomFlags.core.objectiveSecured = true;
   state.turn.actionUsed = true;
-  if (actionId === 'advanceRoom') state.log.unshift(`${player.callsign} carried the team out of ${room.title}.`);
-  else if (actionId === 'finishTraining') { state.finished = true; state.log.unshift(`${player.callsign} cleared the final threshold. Tutorial complete.`); }
-  else state.log.unshift(`${player.callsign} used ${actionId}.`);
+  if (actionId === 'advanceRoom') {
+    state.log.unshift(`${player.callsign} carried the team out of ${room.title}.`);
+    advanceStep();
+    return;
+  } else if (actionId === 'finishTraining') {
+    state.finished = true;
+    state.log.unshift(`${player.callsign} cleared the final threshold. Tutorial complete.`);
+    saveState(); render();
+    return;
+  } else state.log.unshift(`${player.callsign} used ${actionId}.`);
   checkStepCompletion();
   autoEndTurn();
 }
@@ -357,9 +456,10 @@ function moveActivePlayer(x, y) {
 }
 function startTraining() {
   state.players = createPlayers(state.playerCount);
-  state.selectedClient = 'dm'; state.roomKey = 'dock'; state.roomStep = 0; state.finished = false; state.activePlayerIndex = 0;
+  state.roomKey = 'dock'; state.roomStep = 0; state.finished = false; state.activePlayerIndex = 0;
+  state.selectedClient = state.players[0].id;
   resetFlags(); placePlayersForRoom('dock');
-  state.log = ['Training started. The board is the lesson.']; state.screen = 'training';
+  state.log = ['Training started. The board is the lesson.', `${currentStep().label}: ${currentStep().title}`]; state.screen = 'training';
   saveState(); render();
 }
 function hardReset() {
@@ -486,6 +586,15 @@ function renderPlayerView(player) {
     const endBtn = document.createElement('button'); endBtn.className = 'primary ghost'; endBtn.textContent = 'End Turn'; endBtn.onclick = () => endTurn(`${player.callsign} yields the turn.`); endTurnBox.appendChild(endBtn);
     right.appendChild(endTurnBox);
   }
+  const missionBox = document.createElement('div'); missionBox.className = 'panel panel-soft';
+  missionBox.innerHTML = `<div class="small">Tutorial mission</div><div class="big">${currentRoom().title}</div><div class="small">Step ${state.roomStep + 1} of ${currentRoom().steps.length} in this room. Active operator: ${activePlayer().callsign}.</div>`;
+  right.appendChild(missionBox);
+  const logPanel = document.createElement('div'); logPanel.className = 'panel stack';
+  logPanel.innerHTML = '<h3>Visible logs</h3>';
+  const log = document.createElement('div'); log.className = 'log';
+  state.log.slice(0,6).forEach((entry) => { const row = document.createElement('div'); row.className = 'log-entry'; row.textContent = entry; log.appendChild(row); });
+  logPanel.appendChild(log);
+  right.appendChild(logPanel);
   right.appendChild(renderStepStrip());
   wrap.append(left, center, right); return wrap;
 }
@@ -518,7 +627,7 @@ function renderStart() {
   const start = document.createElement('button'); start.className = 'primary'; start.style.marginTop = '18px'; start.textContent = 'Begin Training Mission'; start.onclick = startTraining;
   card.append(row, start);
   if (localStorage.getItem(SAVE_KEY)) {
-    const continueBtn = document.createElement('button'); continueBtn.className = 'primary ghost'; continueBtn.style.marginTop = '12px'; continueBtn.textContent = 'Continue Saved Tutorial'; continueBtn.onclick = () => { if (loadState()) { ensureValidActivePlayer(); render(); } };
+    const continueBtn = document.createElement('button'); continueBtn.className = 'primary ghost'; continueBtn.style.marginTop = '12px'; continueBtn.textContent = 'Continue Saved Tutorial'; continueBtn.onclick = () => { if (loadState()) { ensureValidActivePlayer(); if (state.screen !== 'training') state.screen = 'training'; state.selectedClient = state.players[state.activePlayerIndex]?.id || state.selectedClient || 'dm'; render(); } };
     const resetBtn = document.createElement('button'); resetBtn.className = 'primary danger'; resetBtn.style.marginTop = '12px'; resetBtn.textContent = 'Reset Save'; resetBtn.onclick = hardReset;
     card.append(continueBtn, resetBtn);
   }
