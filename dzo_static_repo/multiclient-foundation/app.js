@@ -113,6 +113,8 @@ const INITIAL_PLAYERS = [
   { id: "p2", callsign: "Operator 2", role: "Signal Hacker", family: "Gem", suit: "Relay", weapon: "Laser Intercept", lane: "cover" },
   { id: "p3", callsign: "Operator 3", role: "Marksman", family: "Chromatic", suit: "Vector", weapon: "Coil Marksman", lane: "back" },
   { id: "p4", callsign: "Operator 4", role: "Engineer / Tech", family: "Metallic", suit: "Containment", weapon: "Slug Utility", lane: "cover" },
+  { id: "p5", callsign: "Operator 5", role: "Vanguard", family: "Chromatic", suit: "Breach", weapon: "Arc Blade", lane: "front" },
+  { id: "p6", callsign: "Operator 6", role: "Marksman", family: "Gem", suit: "Relay", weapon: "Laser Marksman", lane: "back" },
 ].map((player) => ({
   ...player,
   roomId: "dock",

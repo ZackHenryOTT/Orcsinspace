@@ -72,6 +72,8 @@ const INITIAL_PLAYERS: PlayerClient[] = [
   { id: "p2", callsign: "Operator 2", role: "Signal Hacker", family: "Gem", suit: "Relay", weapon: "Laser Intercept", lane: "cover", roomId: "dock", zoneIndex: 0, hp: 12, oxygen: 100, power: 5, heat: 0, stress: 0, tethered: false, braced: false },
   { id: "p3", callsign: "Operator 3", role: "Marksman", family: "Chromatic", suit: "Vector", weapon: "Coil Marksman", lane: "back", roomId: "dock", zoneIndex: 0, hp: 13, oxygen: 100, power: 4, heat: 0, stress: 0, tethered: false, braced: false },
   { id: "p4", callsign: "Operator 4", role: "Engineer / Tech", family: "Metallic", suit: "Containment", weapon: "Slug Utility", lane: "cover", roomId: "dock", zoneIndex: 0, hp: 14, oxygen: 100, power: 5, heat: 0, stress: 0, tethered: false, braced: false },
+  { id: "p5", callsign: "Operator 5", role: "Vanguard", family: "Chromatic", suit: "Breach", weapon: "Arc Blade", lane: "front", roomId: "dock", zoneIndex: 0, hp: 18, oxygen: 100, power: 4, heat: 0, stress: 0, tethered: false, braced: false },
+  { id: "p6", callsign: "Operator 6", role: "Marksman", family: "Gem", suit: "Relay", weapon: "Laser Marksman", lane: "back", roomId: "dock", zoneIndex: 0, hp: 13, oxygen: 100, power: 4, heat: 0, stress: 0, tethered: false, braced: false },
 ];
 
 function createRoomState(): Record<RoomId, RoomState> {
