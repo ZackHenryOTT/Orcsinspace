@@ -3,6 +3,387 @@ const ROLE_OPTIONS = ["Vanguard", "Signal Hacker", "Marksman", "Engineer / Tech"
 const FAMILY_OPTIONS = ["Metallic", "Chromatic", "Gem"];
 const PLAYER_COLORS = ["#5ad6a7", "#6aa7ff", "#ff8f70", "#d47cff", "#f5c56b", "#ff6fb5"];
 
+const TUTORIAL_ROOM_LABELS = {
+  dock: "Lesson 1 // Commit the mission",
+  entry: "Lesson 2 // Read before you open",
+  spine: "Lesson 3 // You cannot do everything",
+  gap: "Lesson 4 // Vacuum is part of the level",
+  core: "Lesson 5 // The objective is the mission",
+  extract: "Lesson 6 // The way out is still the mission",
+  fatal: "Lesson 7 // Winning the room is not enough"
+};
+
+function tutorialStepFor(player, room){
+  const rs = state.roomStates[room.key];
+  const at = player.nodeId;
+  const moveStep = (title, why, wrong, doNow, allowedNodes)=>({
+    label: TUTORIAL_ROOM_LABELS[room.key],
+    title, why, wrong, doNow, allowedNodes, allowedActions:[]
+  });
+  const actionStep = (title, why, wrong, doNow, allowedActions)=>({
+    label: TUTORIAL_ROOM_LABELS[room.key],
+    title, why, wrong, doNow, allowedNodes:[], allowedActions
+  });
+
+  if(room.key==="dock"){
+    if(!rs.objectiveComplete){
+      if(at!=="dock_seal") return moveStep(
+        "Move to Seal Control",
+        "The mission starts when an operator physically reaches the control that commits the team. Position decides what you are even allowed to do.",
+        "Wasting time touching every support point before the room is dangerous.",
+        "Move to Seal Control. Then break the seal.",
+        ["dock_seal"]
+      );
+      return actionStep(
+        "Break the Seal",
+        "This is the transition from safe to dangerous. Once the seal breaks, the station starts pushing back and the clock matters.",
+        "Treating the mission start like flavor text instead of a real commitment.",
+        "Use Break Seal.",
+        ["breakseal"]
+      );
+    }
+    if(at!=="dock_airlock") return moveStep(
+      "Stage at the Inner Airlock",
+      "The room is not solved just because the button was pressed. The operator still has to reach the next threshold.",
+      "Thinking a solved panel is the same thing as solved movement.",
+      "Move to the Inner Airlock.",
+      ["dock_airlock"]
+    );
+    return actionStep(
+      "Push into Entry Lock",
+      "Advance only when the current operator is actually staged at the exit point.",
+      "Trying to move rooms forward while the board still says you are somewhere else.",
+      "Use Advance Team.",
+      ["advance"]
+    );
+  }
+
+  if(room.key==="entry"){
+    if(!rs.scan){
+      if(at!=="right_panel") return moveStep(
+        "Move to the Right Panel",
+        "This room teaches that reading the problem before opening the next door usually pays for itself.",
+        "Rushing the hatch just because it is the obvious objective marker.",
+        "Move to the Right Panel.",
+        ["right_panel"]
+      );
+      return actionStep(
+        "Read the Panel First",
+        "A clean read cuts risk. The tutorial is teaching you to solve the room's real problem before you force the door.",
+        "Opening things blind because the shortest line feels efficient.",
+        "Use Read Panel.",
+        ["scanlock"]
+      );
+    }
+    if(!rs.objectiveComplete){
+      if(at!=="inner_hatch") return moveStep(
+        "Move to the Inner Hatch",
+        "Information helps, but it does not move the team. Somebody still has to walk to the hatch and operate it.",
+        "Expecting a support action to solve the room by itself.",
+        "Move to the Inner Hatch.",
+        ["inner_hatch"]
+      );
+      return actionStep(
+        "Cycle the Hatch",
+        "Read first, then commit. That is cleaner doctrine than blind force.",
+        "Touching objectives in whatever order you happen to reach them.",
+        "Use Cycle Hatch.",
+        ["cyclehatch"]
+      );
+    }
+    if(at!=="spine_door") return moveStep(
+      "Stage at the Spine Door",
+      "A room is finished when you are physically where you need to be next.",
+      "Calling it done because the status light turned green.",
+      "Move to the Spine Door.",
+      ["spine_door"]
+    );
+    return actionStep(
+      "Advance to the Sensor Spine",
+      "Now the tutorial starts trading speed against exposure.",
+      "Lingering in a solved room for no reason.",
+      "Use Advance Team.",
+      ["advance"]
+    );
+  }
+
+  if(room.key==="spine"){
+    if(!rs.scan){
+      if(!["near_cover","upper_duct"].includes(at)) return moveStep(
+        "Move to a Reading Position",
+        "The first useful thing here is not a random support action. It is getting to a place where a real read is possible.",
+        "Trying to solve a sweep from the wrong part of the corridor.",
+        "Move to Near Cover.",
+        ["near_cover"]
+      );
+      return actionStep(
+        "Read the Sweep",
+        "This room proves that the right one action is better than pressing every helpful thing. Spend one beat to make the dangerous lane cleaner.",
+        "Either turtling forever or sprinting blind through the center.",
+        "Use Read Sweep.",
+        ["readsweep"]
+      );
+    }
+    if(["spine_start","near_cover","upper_duct"].includes(at)){
+      return moveStep(
+        "Commit Through the Sweep",
+        "Now that you have the pattern, move. Setup is only useful if it leads to commitment.",
+        "Getting greedy and staying in the safe pocket too long.",
+        "Move through Center Sweep.",
+        ["center_sweep"]
+      );
+    }
+    if(at==="center_sweep"){
+      return moveStep(
+        "Get Out of the Exposed Lane",
+        "The center lane is somewhere you pass through, not somewhere you stop and think.",
+        "Parking in the most punishable space because it feels central.",
+        "Move to Far Cover.",
+        ["far_cover"]
+      );
+    }
+    if(at!=="gap_door"){
+      return moveStep(
+        "Reach the Gap Door",
+        "The corridor lesson ends when you physically arrive at the next room's threshold.",
+        "Thinking a clever crossing is enough if you are not actually staged at the exit.",
+        "Move to the Gap Door.",
+        ["gap_door"]
+      );
+    }
+    return actionStep(
+      "Advance to the Breach",
+      "The next room makes vacuum part of the board.",
+      "Treating the sweep like the whole mission.",
+      "Use Advance Team.",
+      ["advance"]
+    );
+  }
+
+  if(room.key==="gap"){
+    if(!rs.tetherAnchored){
+      if(at!=="near_anchor") return moveStep(
+        "Move to the Anchor Point",
+        "A tether only helps if someone is standing where it can actually be anchored. Position comes first.",
+        "Wanting the buff without occupying the place that enables it.",
+        "Move to Near Anchor.",
+        ["near_anchor"]
+      );
+      return actionStep(
+        "Anchor the Tether",
+        "Forced movement and vacuum pull kill careless squads faster than damage does. Anchor before you cross.",
+        "Trying to wing it through a breach because the span looks short.",
+        "Use Anchor Tether.",
+        ["anchortether"]
+      );
+    }
+    if(!rs.braced){
+      if(["near_anchor","near_cover_gap"].includes(at)) return moveStep(
+        "Commit into the Breach",
+        "The room is solved by crossing it, not by stacking support forever.",
+        "Treating setup actions like they solve the room for free.",
+        "Move to Broken Span.",
+        ["broken_span"]
+      );
+      if(at==="broken_span") return moveStep(
+        "Find a Bracing Point",
+        "You do not want to live on the exposed span. Get to a place where controlled movement is possible.",
+        "Stopping in the open because you already spent effort getting there.",
+        "Move to Side Lip.",
+        ["side_lip"]
+      );
+      if(at!=="side_lip") return moveStep(
+        "Get to the Bracing Point",
+        "The next lesson is about using wings for control, not flight.",
+        "Assuming any node can do any job.",
+        "Move to Side Lip.",
+        ["side_lip"]
+      );
+      return actionStep(
+        "Brace Before the Final Push",
+        "Wings help you survive when used as control surfaces. In vacuum they are not free movement.",
+        "Opening up too much profile in a room that wants to throw you into space.",
+        "Use Wing Brace.",
+        ["bracewings"]
+      );
+    }
+    if(at==="side_lip") return moveStep(
+      "Cross to the Far Brace",
+      "Now that the crossing has backbone and control, finish it.",
+      "Staying still because the room finally feels less scary.",
+      "Move to Far Brace Point.",
+      ["far_brace"]
+    );
+    if(at==="far_brace") return moveStep(
+      "Reach the Core Door",
+      "The breach is only solved when you physically enter the next room.",
+      "Calling the room done too early.",
+      "Move to the Core Door.",
+      ["core_door"]
+    );
+    if(at!=="core_door") return moveStep(
+      "Finish the Crossing",
+      "Every room keeps asking where you are, not just what you clicked.",
+      "Thinking the tutorial forgot about the actual exit node.",
+      "Move to the Core Door.",
+      ["core_door"]
+    );
+    return actionStep(
+      "Advance to the Core Room",
+      "Now the tutorial teaches that combat exists to protect the objective, not replace it.",
+      "Feeling victorious just because nobody got blown into space yet.",
+      "Use Advance Team.",
+      ["advance"]
+    );
+  }
+
+  if(room.key==="core"){
+    if(!rs.consoleJammed){
+      if(at!=="side_console") return moveStep(
+        "Move to the Side Console",
+        "This room has a control problem. The tutorial wants you to solve that before treating the chamber like a generic kill room.",
+        "Ignoring the room's machinery and focusing only on center-mass aggression.",
+        "Move to Side Console.",
+        ["side_console"]
+      );
+      return actionStep(
+        "Jam the Route Node",
+        "Breaking the room's control loop buys more safety than raw damage here.",
+        "Treating attack as the answer to every problem.",
+        "Use Jam Route Node.",
+        ["jamconsole"]
+      );
+    }
+    if(!rs.objectiveComplete){
+      if(at!=="core_pedestal") return moveStep(
+        "Move to the Objective",
+        "Now that the room is less hostile, go where the mission actually is.",
+        "Lingering in cover and pretending the objective will secure itself.",
+        "Move to the Core Pedestal.",
+        ["core_pedestal"]
+      );
+      return actionStep(
+        "Secure the Core",
+        "The objective is the mission. Combat was only there to make this difficult.",
+        "Feeling like the mission is about clearing a board instead of taking the objective.",
+        "Use Secure Core.",
+        ["securecore"]
+      );
+    }
+    if(at!=="extract_lock") return moveStep(
+      "Stage at the Extraction Lock",
+      "You are not done when the core is secure. You are done when you survive the route out.",
+      "Relaxing because the objective is in your hands.",
+      "Move to the Extraction Lock.",
+      ["extract_lock"]
+    );
+    return actionStep(
+      "Advance to Extraction",
+      "The tutorial is deliberately turning the way out into the real climax.",
+      "Thinking the mission already peaked in the core room.",
+      "Use Advance Team.",
+      ["advance"]
+    );
+  }
+
+  if(room.key==="extract"){
+    if(!rs.regrouped){
+      if(at==="extract_start") return moveStep(
+        "Take the Safer Extraction Line",
+        "This room teaches that getting out well is still a decision. Faster is not automatically smarter.",
+        "Taking the fast line just because the room feels mostly solved.",
+        "Move to Safe Line.",
+        ["safe_line"]
+      );
+      if(at==="safe_line") return moveStep(
+        "Reach the Regroup Point",
+        "Extraction is where discipline pays again. Move to regroup before you sprint for the hatch.",
+        "Treating the last corridor like a victory lap.",
+        "Move to Regroup Point.",
+        ["regroup"]
+      );
+      if(at!=="regroup") return moveStep(
+        "Get to the Regroup Point",
+        "The tutorial wants you to feel the difference between technically escaping and escaping with discipline.",
+        "Drifting around the room because the exit is visible.",
+        "Move to Regroup Point.",
+        ["regroup"]
+      );
+      return actionStep(
+        "Regroup Before the Final Run",
+        "A short pause to get disciplined is worth more than another blind burst of speed.",
+        "Assuming the room no longer deserves respect because the objective is secured.",
+        "Use Regroup.",
+        ["regroup"]
+      );
+    }
+    if(at!=="service_hatch") return moveStep(
+      "Reach the Service Hatch",
+      "The hatch is the last station-owned threshold. After this, vacuum owns the consequences.",
+      "Thinking the regroup itself was the finish line.",
+      "Move to the Service Hatch.",
+      ["service_hatch"]
+    );
+    return actionStep(
+      "Advance to the Outer Arm",
+      "The room is over soon. The mission is not.",
+      "Treating extraction as epilogue.",
+      "Use Advance Team.",
+      ["advance"]
+    );
+  }
+
+  if(room.key==="fatal"){
+    if(!rs.disciplineCall){
+      if(at!=="damaged_rail") return moveStep(
+        "Move to the Damaged Rail",
+        "The final extraction decision becomes real only when you are standing where that decision can be made.",
+        "Assuming the last room is just a straight line to the end.",
+        "Move to Damaged Rail.",
+        ["damaged_rail"]
+      );
+      return actionStep(
+        "Reclip and Collapse Wings",
+        "This is the correct doctrine. Slow down, tighten the profile, survive the vacuum.",
+        "Cutting the corner because the room feels won and the hook looks close.",
+        "Use Reclip & Collapse Wings.",
+        ["reclip"]
+      );
+    }
+    if(at==="damaged_rail") return moveStep(
+      "Move onto the Outer Arm",
+      "You made the right call. Now carry that discipline into the final exposed segment.",
+      "Thinking one correct action makes the rest of the room automatic.",
+      "Move to Outer Arm.",
+      ["outer_arm"]
+    );
+    if(at==="outer_arm") return moveStep(
+      "Reach the Escape Hook",
+      "The board still cares where you are. Walk it out.",
+      "Rushing the last two nodes because the hook is visible.",
+      "Move to Escape Hook.",
+      ["escape_hook"]
+    );
+    if(at!=="escape_hook") return moveStep(
+      "Finish the Crossing",
+      "Even the end of the tutorial still teaches through position.",
+      "Expecting the final room to fade into a cutscene.",
+      "Move to Escape Hook.",
+      ["escape_hook"]
+    );
+    return actionStep(
+      "Review the Fatal Telemetry",
+      "The training ends by showing why winning the room is not the same thing as surviving the mission.",
+      "Believing the story ends the moment you touch the last hook.",
+      "Use Review the Fatal Telemetry.",
+      ["teachloss"]
+    );
+  }
+
+  return null;
+}
+
+
 const ROOM_SEQUENCE = [
   {
     key: "dock",
@@ -720,6 +1101,7 @@ function renderMission(){
   const visibleNodes = isDm ? new Set(room.nodes.map(n=>n.id)) : visibleNodeIdsFor(viewingPlayer, room);
   const visibleTeammates = isDm ? state.players.filter(p=>p.roomKey===room.key && p.id!==viewingPlayer?.id) : visibleTeammatesFor(viewingPlayer, room);
   const hiddenTeammates = isDm ? 0 : teammatesHiddenCountFor(viewingPlayer, room);
+  const tutorial = isDm ? null : tutorialStepFor(viewingPlayer, room);
 
   return `
     <div class="card topbar">
@@ -757,7 +1139,7 @@ function renderMission(){
 
     <div class="screen">
       <div class="card panel sidebar">
-        ${isDm ? renderDmSidebar(room) : renderPlayerSidebar(viewingPlayer, room, visibleTeammates, hiddenTeammates)}
+        ${isDm ? renderDmSidebar(room) : renderPlayerSidebar(viewingPlayer, room, visibleTeammates, hiddenTeammates, tutorial)}
       </div>
 
       <div class="card board-wrap">
@@ -772,11 +1154,11 @@ function renderMission(){
             <span class="hazard">Hazard</span>
           </div>
         </div>
-        ${renderBoard(room, isDm, viewingPlayer, visibleNodes)}
+        ${renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial)}
       </div>
 
       <div class="card panel actions">
-        ${isDm ? renderDmActions(room) : renderPlayerActions(viewingPlayer, room)}
+        ${isDm ? renderDmActions(room) : renderPlayerActions(viewingPlayer, room, tutorial)}
       </div>
     </div>
   `;
@@ -785,7 +1167,7 @@ function renderMission(){
 function renderDmSidebar(room){
   return `
     <h3>DM Client</h3>
-    <div class="dm-board-hint">Full board, all players, hidden room logic. This side is allowed to know everything.</div>
+    <div class="dm-board-hint"><strong>${TUTORIAL_ROOM_LABELS[room.key]}</strong><br/>Full board, all players, hidden room logic. This side is allowed to know everything.</div>
     <div class="info-list" style="margin-top:12px;">
       <div class="stat"><div class="k">Objective</div><div class="v">${state.roomStates[room.key].objectiveComplete ? "Complete" : "Open"}</div></div>
       <div class="stat"><div class="k">Stability</div><div class="v">${state.stability}</div></div>
@@ -804,7 +1186,7 @@ function renderDmSidebar(room){
   `;
 }
 
-function renderPlayerSidebar(player, room, visibleTeammates, hiddenTeammates){
+function renderPlayerSidebar(player, room, visibleTeammates, hiddenTeammates, tutorial){
   return `
     <h3>${player.callsign}</h3>
     <div class="turn-banner ${isActivePlayer(player.id) ? "" : "waiting"}">
@@ -820,6 +1202,22 @@ function renderPlayerSidebar(player, room, visibleTeammates, hiddenTeammates){
       <div class="stat"><div class="k">Position</div><div class="v">${nodeMap(room)[player.nodeId].name}</div></div>
     </div>
 
+    <div class="coach-card" style="margin-top:16px;">
+      <div class="coach-kicker">${tutorial ? tutorial.label : "Tutorial"}</div>
+      <div class="coach-title">${tutorial ? tutorial.title : room.lesson}</div>
+      <div class="coach-grid">
+        <div>
+          <div class="coach-sub">Why this is right</div>
+          <div class="coach-copy">${tutorial ? tutorial.why : room.lesson}</div>
+        </div>
+        <div>
+          <div class="coach-sub">Wrong instinct</div>
+          <div class="coach-copy">${tutorial ? tutorial.wrong : "Do not try to do everything. Do the one or two things this room actually demands."}</div>
+        </div>
+      </div>
+      <div class="coach-callout">${tutorial ? tutorial.doNow : room.objectiveText}</div>
+    </div>
+
     <h3 style="margin-top:16px;">Visible teammates</h3>
     ${visibleTeammates.length ? visibleTeammates.map(p=>`
       <div class="teammate">
@@ -833,12 +1231,14 @@ function renderPlayerSidebar(player, room, visibleTeammates, hiddenTeammates){
   `;
 }
 
-function renderBoard(room, isDm, viewingPlayer, visibleNodes){
+function renderBoard(room, isDm, viewingPlayer, visibleNodes, tutorial){
   const roomAdj = adjacency(room);
   const roomNodes = nodeMap(room);
-  const reachable = (!isDm && viewingPlayer && isActivePlayer(viewingPlayer.id) && !state.turn.moveUsed && viewingPlayer.roomKey===room.key)
+  const rawReachable = (!isDm && viewingPlayer && isActivePlayer(viewingPlayer.id) && !state.turn.moveUsed && viewingPlayer.roomKey===room.key)
     ? new Set(roomAdj[viewingPlayer.nodeId] || [])
     : new Set();
+  const tutorialNodeSet = tutorial && tutorial.allowedNodes && tutorial.allowedNodes.length ? new Set(tutorial.allowedNodes) : null;
+  const reachable = tutorialNodeSet ? new Set([...rawReachable].filter(id => tutorialNodeSet.has(id))) : rawReachable;
 
   const visibleTeammateIds = !isDm && viewingPlayer ? new Set(visibleTeammatesFor(viewingPlayer, room).map(t=>t.id)) : new Set();
 
@@ -879,7 +1279,10 @@ function renderBoard(room, isDm, viewingPlayer, visibleNodes){
       return "";
     }).join("");
 
-    const prompt = reachable.has(node.id) ? '<div class="node-prompt">Move</div>' : '';
+    if(tutorialNodeSet && tutorialNodeSet.has(node.id)) classes.push("tutorial-target");
+    const prompt = reachable.has(node.id)
+      ? `<div class="node-prompt">${tutorialNodeSet && tutorialNodeSet.has(node.id) ? "Go here" : "Move"}</div>`
+      : '';
 
     return `
       <div class="${classes.join(" ")}" data-node="${node.id}" style="left:${node.x}%; top:${node.y}%;">
@@ -914,8 +1317,9 @@ function renderDmActions(room){
   `;
 }
 
-function renderPlayerActions(player, room){
+function renderPlayerActions(player, room, tutorial){
   const actions = roomActionCards(player, room);
+  const shownActions = tutorial && tutorial.allowedActions && tutorial.allowedActions.length ? actions.filter(action => tutorial.allowedActions.includes(action.id) || action.id==="advance") : actions;
   const active = isActivePlayer(player.id);
   const node = nodeMap(room)[player.nodeId];
   return `
@@ -926,11 +1330,11 @@ function renderPlayerActions(player, room){
       <strong>Control rule:</strong> You can move and act only for ${player.callsign}. Visible teammates are information, not controls.
     </div>
     <div class="turn-banner ${active ? "" : "waiting"}" style="margin-top:12px;">
-      <div>${active ? "You may move to an adjacent node or act from your current position." : "Another player is active."}</div>
+      <div>${active ? (tutorial ? tutorial.doNow : "You may move to an adjacent node or act from your current position.") : "Another player is active."}</div>
       <div>${state.turn.secondsLeft}s</div>
     </div>
     <div class="actions-list" style="margin-top:12px;">
-      ${actions.length ? actions.map(action=>`
+      ${shownActions.length ? shownActions.map(action=>`
         <div class="action-card">
           <div class="a-title">${action.title}</div>
           <div class="a-desc">${action.desc}</div>
@@ -939,7 +1343,7 @@ function renderPlayerActions(player, room){
             <button class="${action.type==='advance' ? 'primary' : 'secondary'}" data-action="${action.id}" ${(!action.enabled || !active) ? "disabled" : ""}>Use action</button>
           </div>
         </div>
-      `).join("") : `<div class="big-empty">No special action from this position. Move somewhere useful.</div>`}
+      `).join("") : `<div class="big-empty">${tutorial ? tutorial.doNow : "No special action from this position. Move somewhere useful."}</div>`}
     </div>
     <div class="footer-actions" style="margin-top:12px;">
       <button class="secondary" id="end-turn-btn" ${active ? "" : "disabled"}>End turn</button>

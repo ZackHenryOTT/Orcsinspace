@@ -133,3 +133,12 @@ svg.floorplan{position:absolute;inset:0;overflow:visible}
 .room-extract .silhouette.safe-path{fill:#15231e;stroke:#3e6f59}
 .room-fatal .silhouette.outer-arm{fill:#18202f;stroke:#8da3d9}
 .room-fatal .silhouette.unstable-plume{filter:drop-shadow(0 0 18px rgba(170,94,242,.22))}
+
+.coach-card{padding:14px;border:1px solid #365a49;background:linear-gradient(180deg,rgba(46,198,143,.09),rgba(8,13,21,.72));border-radius:18px}
+.coach-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:#97f1cb}
+.coach-title{margin-top:6px;font-size:20px;font-weight:800}
+.coach-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+.coach-sub{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:#9fb0c8}
+.coach-copy{margin-top:5px;font-size:13px;line-height:1.5;color:#d7dfef}
+.coach-callout{margin-top:12px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);font-size:13px;font-weight:700;color:#f2f7ff}
+.node.tutorial-target{outline:2px solid rgba(255,235,120,.45);box-shadow:0 0 0 1px rgba(255,235,120,.18), inset 0 0 24px rgba(255,235,120,.06)}
