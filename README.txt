@@ -1,2 +1,1 @@
-Dead-Zone Ops static-root repo package.
-Deploy from repo root. No build command.
+Static-root repo. Replace repo contents with these files and push.
