@@ -11,12 +11,20 @@ const ROOM_SEQUENCE = [
     objectiveText: "Move to Seal Control and break the seal.",
     startNode: "dock_staging",
     exitNode: "dock_airlock",
+    silhouettes: [
+      { kind: "ring", x: 22, y: 60, r: 16, cls: "floor ring" },
+      { kind: "rect", x: 34, y: 52, w: 18, h: 16, cls: "floor connector" },
+      { kind: "rect", x: 52, y: 53, w: 20, h: 14, cls: "floor corridor" },
+      { kind: "rect", x: 72, y: 53, w: 18, h: 14, cls: "floor airlock" },
+      { kind: "rect", x: 30, y: 16, w: 14, h: 18, cls: "floor alcove" },
+      { kind: "rect", x: 30, y: 72, w: 14, h: 18, cls: "floor alcove" }
+    ],
     nodes: [
-      { id: "dock_staging", x: 18, y: 60, name: "Staging Ring", type: "cover", tags: ["cover"], desc: "Final clean staging point before the mission begins." },
-      { id: "dock_observe", x: 36, y: 28, name: "Observation Slit", type: "support", tags: [], desc: "Look into the dead station and steady your read." },
-      { id: "dock_tether", x: 36, y: 78, name: "Tether Rack", type: "support", tags: ["cover"], desc: "Mag clamps and spare lines." },
-      { id: "dock_seal", x: 62, y: 60, name: "Seal Control", type: "objective", tags: ["interactive"], desc: "The lock that turns briefing into mission." },
-      { id: "dock_airlock", x: 84, y: 60, name: "Inner Airlock", type: "exit", tags: ["interactive"], desc: "Entry to the dead station." }
+      { id: "dock_staging", x: 22, y: 60, name: "Staging Ring", type: "cover", tags: ["cover"], desc: "Final clean staging point before the mission begins." },
+      { id: "dock_observe", x: 37, y: 25, name: "Observation Slit", type: "support", tags: [], desc: "Look into the dead station and steady your read." },
+      { id: "dock_tether", x: 37, y: 79, name: "Tether Rack", type: "support", tags: ["cover"], desc: "Mag clamps and spare lines." },
+      { id: "dock_seal", x: 61, y: 60, name: "Seal Control", type: "objective", tags: ["interactive"], desc: "The lock that turns briefing into mission." },
+      { id: "dock_airlock", x: 82, y: 60, name: "Inner Airlock", type: "exit", tags: ["interactive"], desc: "Entry to the dead station." }
     ],
     edges: [["dock_staging","dock_observe"],["dock_staging","dock_tether"],["dock_staging","dock_seal"],["dock_seal","dock_airlock"]],
   },
@@ -27,12 +35,20 @@ const ROOM_SEQUENCE = [
     objectiveText: "Cycle the inner hatch and stage the team at the spine door.",
     startNode: "entry_lock",
     exitNode: "spine_door",
+    silhouettes: [
+      { kind: "rect", x: 10, y: 49, w: 20, h: 22, cls: "floor room" },
+      { kind: "rect", x: 28, y: 53, w: 20, h: 14, cls: "floor corridor" },
+      { kind: "rect", x: 48, y: 50, w: 18, h: 20, cls: "floor hatch" },
+      { kind: "rect", x: 66, y: 53, w: 22, h: 14, cls: "floor corridor" },
+      { kind: "rect", x: 26, y: 22, w: 14, h: 16, cls: "floor alcove" },
+      { kind: "rect", x: 26, y: 71, w: 14, h: 18, cls: "floor alcove" }
+    ],
     nodes: [
-      { id: "entry_lock", x: 14, y: 60, name: "Entry Lock", type: "start", tags: ["cover"], desc: "Broken pressure chamber." },
-      { id: "left_cover", x: 32, y: 38, name: "Left Cover", type: "cover", tags: ["cover"], desc: "A shielded recess." },
-      { id: "right_panel", x: 32, y: 80, name: "Right Panel", type: "support", tags: ["interactive"], desc: "The hatch status display and override leads." },
-      { id: "inner_hatch", x: 58, y: 60, name: "Inner Hatch", type: "objective", tags: ["interactive","exposed"], desc: "Cycle this to reach the spine." },
-      { id: "spine_door", x: 84, y: 60, name: "Spine Door", type: "exit", tags: ["interactive"], desc: "Door into the sensor corridor." }
+      { id: "entry_lock", x: 17, y: 60, name: "Entry Lock", type: "start", tags: ["cover"], desc: "Broken pressure chamber." },
+      { id: "left_cover", x: 34, y: 30, name: "Left Cover", type: "cover", tags: ["cover"], desc: "A shielded recess." },
+      { id: "right_panel", x: 34, y: 80, name: "Right Panel", type: "support", tags: ["interactive"], desc: "The hatch status display and override leads." },
+      { id: "inner_hatch", x: 57, y: 60, name: "Inner Hatch", type: "objective", tags: ["interactive","exposed"], desc: "Cycle this to reach the spine." },
+      { id: "spine_door", x: 83, y: 60, name: "Spine Door", type: "exit", tags: ["interactive"], desc: "Door into the sensor corridor." }
     ],
     edges: [["entry_lock","left_cover"],["entry_lock","right_panel"],["left_cover","inner_hatch"],["right_panel","inner_hatch"],["inner_hatch","spine_door"]],
   },
@@ -43,14 +59,22 @@ const ROOM_SEQUENCE = [
     objectiveText: "Thread the corridor and get everyone to the gap door.",
     startNode: "spine_start",
     exitNode: "gap_door",
+    silhouettes: [
+      { kind: "rect", x: 8, y: 52, w: 80, h: 16, cls: "floor corridor long" },
+      { kind: "rect", x: 22, y: 24, w: 14, h: 16, cls: "floor alcove" },
+      { kind: "rect", x: 40, y: 12, w: 12, h: 14, cls: "floor vent" },
+      { kind: "rect", x: 40, y: 78, w: 16, h: 14, cls: "floor pocket" },
+      { kind: "rect", x: 60, y: 32, w: 14, h: 16, cls: "floor alcove" },
+      { kind: "beam", x1: 43, y1: 44, x2: 43, y2: 74, cls: "hazard-beam" }
+    ],
     nodes: [
-      { id: "spine_start", x: 10, y: 60, name: "Spine Start", type: "cover", tags: ["cover"], desc: "Last sheltered segment before the sweep." },
-      { id: "near_cover", x: 26, y: 36, name: "Near Cover", type: "cover", tags: ["cover","interactive"], desc: "Good place to read the sweep." },
-      { id: "center_sweep", x: 44, y: 60, name: "Center Sweep", type: "hazard", tags: ["exposed","hazard"], desc: "Timing lane cut by the active sensor sweep." },
-      { id: "upper_duct", x: 44, y: 22, name: "Upper Duct", type: "support", tags: ["interactive"], desc: "Narrow sightline to read the pattern." },
-      { id: "pocket_turn", x: 44, y: 92, name: "Pocket Turn", type: "support", tags: ["interactive"], desc: "Slip route into maintenance." },
-      { id: "far_cover", x: 66, y: 42, name: "Far Cover", type: "cover", tags: ["cover"], desc: "A hard wall before the next commit." },
-      { id: "gap_door", x: 86, y: 60, name: "Gap Door", type: "exit", tags: ["interactive"], desc: "Access to the hull breach." }
+      { id: "spine_start", x: 13, y: 60, name: "Spine Start", type: "cover", tags: ["cover"], desc: "Last sheltered segment before the sweep." },
+      { id: "near_cover", x: 29, y: 31, name: "Near Cover", type: "cover", tags: ["cover","interactive"], desc: "Good place to read the sweep." },
+      { id: "center_sweep", x: 43, y: 60, name: "Center Sweep", type: "hazard", tags: ["exposed","hazard"], desc: "Timing lane cut by the active sensor sweep." },
+      { id: "upper_duct", x: 46, y: 19, name: "Upper Duct", type: "support", tags: ["interactive"], desc: "Narrow sightline to read the pattern." },
+      { id: "pocket_turn", x: 49, y: 86, name: "Pocket Turn", type: "support", tags: ["interactive"], desc: "Slip route into maintenance." },
+      { id: "far_cover", x: 66, y: 40, name: "Far Cover", type: "cover", tags: ["cover"], desc: "A hard wall before the next commit." },
+      { id: "gap_door", x: 84, y: 60, name: "Gap Door", type: "exit", tags: ["interactive"], desc: "Access to the hull breach." }
     ],
     edges: [["spine_start","near_cover"],["spine_start","center_sweep"],["near_cover","center_sweep"],["near_cover","upper_duct"],["center_sweep","far_cover"],["pocket_turn","center_sweep"],["pocket_turn","far_cover"],["far_cover","gap_door"]],
   },
@@ -61,14 +85,23 @@ const ROOM_SEQUENCE = [
     objectiveText: "Anchor, brace, and cross the breach without getting shredded by vacuum pull.",
     startNode: "near_anchor",
     exitNode: "core_door",
+    silhouettes: [
+      { kind: "rect", x: 6, y: 52, w: 22, h: 18, cls: "floor room" },
+      { kind: "rect", x: 20, y: 32, w: 18, h: 12, cls: "floor shelf" },
+      { kind: "rect", x: 71, y: 52, w: 18, h: 16, cls: "floor room" },
+      { kind: "rect", x: 78, y: 36, w: 14, h: 12, cls: "floor brace" },
+      { kind: "poly", points: "30,56 48,48 58,52 66,48 66,64 56,68 46,64 30,68", cls: "gap-bridge" },
+      { kind: "poly", points: "44,24 58,18 66,26 60,38 48,36", cls: "hazard-plume" },
+      { kind: "poly", points: "48,78 60,74 66,84 58,92 46,88", cls: "side-lip" }
+    ],
     nodes: [
-      { id: "near_anchor", x: 12, y: 64, name: "Near Anchor", type: "support", tags: ["cover","interactive"], desc: "Best point to anchor a tether line." },
-      { id: "near_cover_gap", x: 24, y: 36, name: "Near Cover", type: "cover", tags: ["cover"], desc: "Half-shielded plating near the breach." },
-      { id: "broken_span", x: 44, y: 58, name: "Broken Span", type: "hazard", tags: ["exposed","hazard"], desc: "Open to vacuum and crosswind." },
-      { id: "hazard_rail", x: 58, y: 30, name: "Hazard Rail", type: "hazard", tags: ["exposed","hazard"], desc: "Fast but lethal if you overcorrect." },
-      { id: "side_lip", x: 56, y: 86, name: "Side Lip", type: "support", tags: ["interactive"], desc: "Good bracing point for controlled movement." },
+      { id: "near_anchor", x: 16, y: 60, name: "Near Anchor", type: "support", tags: ["cover","interactive"], desc: "Best point to anchor a tether line." },
+      { id: "near_cover_gap", x: 26, y: 38, name: "Near Cover", type: "cover", tags: ["cover"], desc: "Half-shielded plating near the breach." },
+      { id: "broken_span", x: 45, y: 58, name: "Broken Span", type: "hazard", tags: ["exposed","hazard"], desc: "Open to vacuum and crosswind." },
+      { id: "hazard_rail", x: 56, y: 28, name: "Hazard Rail", type: "hazard", tags: ["exposed","hazard"], desc: "Fast but lethal if you overcorrect." },
+      { id: "side_lip", x: 56, y: 84, name: "Side Lip", type: "support", tags: ["interactive"], desc: "Good bracing point for controlled movement." },
       { id: "far_brace", x: 76, y: 58, name: "Far Brace Point", type: "support", tags: ["interactive","cover"], desc: "Where the crossing stabilizes." },
-      { id: "core_door", x: 90, y: 58, name: "Core Door", type: "exit", tags: ["interactive"], desc: "Entry to the signal chamber." }
+      { id: "core_door", x: 88, y: 58, name: "Core Door", type: "exit", tags: ["interactive"], desc: "Entry to the signal chamber." }
     ],
     edges: [["near_anchor","near_cover_gap"],["near_anchor","broken_span"],["near_cover_gap","broken_span"],["broken_span","hazard_rail"],["broken_span","side_lip"],["hazard_rail","far_brace"],["side_lip","far_brace"],["far_brace","core_door"]],
   },
@@ -79,12 +112,19 @@ const ROOM_SEQUENCE = [
     objectiveText: "Break the room’s control problem and secure the core.",
     startNode: "core_entry",
     exitNode: "extract_lock",
+    silhouettes: [
+      { kind: "rect", x: 10, y: 40, w: 72, h: 34, cls: "floor chamber" },
+      { kind: "rect", x: 24, y: 26, w: 16, h: 12, cls: "floor cover-block" },
+      { kind: "rect", x: 24, y: 72, w: 18, h: 14, cls: "floor console-bay" },
+      { kind: "rect", x: 49, y: 48, w: 18, h: 18, cls: "floor pedestal" },
+      { kind: "rect", x: 66, y: 24, w: 14, h: 14, cls: "floor choke" }
+    ],
     nodes: [
-      { id: "core_entry", x: 14, y: 60, name: "Core Entry", type: "cover", tags: ["cover"], desc: "The room opens up here." },
-      { id: "low_cover", x: 32, y: 36, name: "Low Cover", type: "cover", tags: ["cover"], desc: "Good angle on the pedestal." },
-      { id: "side_console", x: 34, y: 84, name: "Side Console", type: "support", tags: ["interactive"], desc: "Control node that calms the room if jammed." },
+      { id: "core_entry", x: 16, y: 60, name: "Core Entry", type: "cover", tags: ["cover"], desc: "The room opens up here." },
+      { id: "low_cover", x: 32, y: 31, name: "Low Cover", type: "cover", tags: ["cover"], desc: "Good angle on the pedestal." },
+      { id: "side_console", x: 33, y: 81, name: "Side Console", type: "support", tags: ["interactive"], desc: "Control node that calms the room if jammed." },
       { id: "core_pedestal", x: 58, y: 58, name: "Core Pedestal", type: "objective", tags: ["interactive","exposed"], desc: "The objective. The mission is here." },
-      { id: "rear_choke", x: 72, y: 32, name: "Rear Choke", type: "cover", tags: ["cover"], desc: "Tighter angle to protect the exit." },
+      { id: "rear_choke", x: 72, y: 31, name: "Rear Choke", type: "cover", tags: ["cover"], desc: "Tighter angle to protect the exit." },
       { id: "extract_lock", x: 88, y: 58, name: "Extraction Lock", type: "exit", tags: ["interactive"], desc: "Back into the extraction corridors." }
     ],
     edges: [["core_entry","low_cover"],["core_entry","side_console"],["low_cover","core_pedestal"],["side_console","core_pedestal"],["core_pedestal","rear_choke"],["core_pedestal","extract_lock"],["rear_choke","extract_lock"]],
@@ -96,12 +136,20 @@ const ROOM_SEQUENCE = [
     objectiveText: "Get the squad to the service hatch without treating the room like it’s already over.",
     startNode: "extract_start",
     exitNode: "service_hatch",
+    silhouettes: [
+      { kind: "rect", x: 10, y: 52, w: 20, h: 16, cls: "floor corridor" },
+      { kind: "rect", x: 28, y: 44, w: 20, h: 12, cls: "floor shutter-lane" },
+      { kind: "poly", points: "44,30 66,18 74,28 60,44 46,42", cls: "fast-path" },
+      { kind: "poly", points: "42,80 60,74 70,82 58,92 42,90", cls: "safe-path" },
+      { kind: "rect", x: 66, y: 52, w: 16, h: 16, cls: "floor regroup" },
+      { kind: "rect", x: 82, y: 52, w: 12, h: 16, cls: "floor hatch" }
+    ],
     nodes: [
-      { id: "extract_start", x: 12, y: 60, name: "Extraction Start", type: "cover", tags: ["cover"], desc: "The station is now reacting to the theft." },
-      { id: "shutter_lane", x: 34, y: 38, name: "Shutter Lane", type: "hazard", tags: ["exposed"], desc: "Fast lane through moving shutters." },
-      { id: "fast_line", x: 54, y: 26, name: "Fast Line", type: "hazard", tags: ["exposed","hazard"], desc: "Direct but nasty." },
-      { id: "safe_line", x: 52, y: 84, name: "Safe Line", type: "cover", tags: ["cover"], desc: "Slower, steadier route." },
-      { id: "regroup", x: 70, y: 60, name: "Regroup Point", type: "support", tags: ["interactive","cover"], desc: "Last place to get disciplined." },
+      { id: "extract_start", x: 16, y: 60, name: "Extraction Start", type: "cover", tags: ["cover"], desc: "The station is now reacting to the theft." },
+      { id: "shutter_lane", x: 35, y: 40, name: "Shutter Lane", type: "hazard", tags: ["exposed"], desc: "Fast lane through moving shutters." },
+      { id: "fast_line", x: 56, y: 29, name: "Fast Line", type: "hazard", tags: ["exposed","hazard"], desc: "Direct but nasty." },
+      { id: "safe_line", x: 54, y: 84, name: "Safe Line", type: "cover", tags: ["cover"], desc: "Slower, steadier route." },
+      { id: "regroup", x: 72, y: 60, name: "Regroup Point", type: "support", tags: ["interactive","cover"], desc: "Last place to get disciplined." },
       { id: "service_hatch", x: 88, y: 60, name: "Service Hatch", type: "exit", tags: ["interactive"], desc: "Exit to the outer arm." }
     ],
     edges: [["extract_start","shutter_lane"],["shutter_lane","fast_line"],["shutter_lane","safe_line"],["fast_line","regroup"],["safe_line","regroup"],["regroup","service_hatch"]],
@@ -113,11 +161,18 @@ const ROOM_SEQUENCE = [
     objectiveText: "Cross the arm. The final lesson is about discipline, not firepower.",
     startNode: "arm_start",
     exitNode: "escape_hook",
+    silhouettes: [
+      { kind: "rect", x: 8, y: 53, w: 22, h: 14, cls: "floor arm-root" },
+      { kind: "rect", x: 28, y: 53, w: 16, h: 14, cls: "floor rail" },
+      { kind: "poly", points: "44,58 64,44 74,46 74,56 60,66 46,68", cls: "outer-arm" },
+      { kind: "poly", points: "66,22 80,16 86,28 76,40 66,36", cls: "unstable-plume" },
+      { kind: "rect", x: 84, y: 52, w: 10, h: 16, cls: "floor hook" }
+    ],
     nodes: [
-      { id: "arm_start", x: 12, y: 60, name: "Arm Start", type: "cover", tags: ["cover"], desc: "Still attached to the station body." },
+      { id: "arm_start", x: 16, y: 60, name: "Arm Start", type: "cover", tags: ["cover"], desc: "Still attached to the station body." },
       { id: "damaged_rail", x: 34, y: 60, name: "Damaged Rail", type: "support", tags: ["interactive"], desc: "Where you can reclip and collapse your profile." },
-      { id: "outer_arm", x: 54, y: 42, name: "Outer Arm", type: "hazard", tags: ["exposed"], desc: "Open and unstable, but still survivable." },
-      { id: "unstable_joint", x: 70, y: 26, name: "Unstable Joint", type: "hazard", tags: ["hazard","interactive"], desc: "Tempting shortcut. Bad doctrine." },
+      { id: "outer_arm", x: 56, y: 58, name: "Outer Arm", type: "hazard", tags: ["exposed"], desc: "Open and unstable, but still survivable." },
+      { id: "unstable_joint", x: 74, y: 28, name: "Unstable Joint", type: "hazard", tags: ["hazard","interactive"], desc: "Tempting shortcut. Bad doctrine." },
       { id: "escape_hook", x: 90, y: 58, name: "Escape Hook", type: "exit", tags: ["interactive"], desc: "Looks like the finish line." }
     ],
     edges: [["arm_start","damaged_rail"],["damaged_rail","outer_arm"],["outer_arm","unstable_joint"],["outer_arm","escape_hook"],["unstable_joint","escape_hook"]],
@@ -781,11 +836,19 @@ function renderPlayerSidebar(player, room, visibleTeammates, hiddenTeammates){
 function renderBoard(room, isDm, viewingPlayer, visibleNodes){
   const roomAdj = adjacency(room);
   const roomNodes = nodeMap(room);
-  const activeId = state.activePlayerId;
-  const currentMover = getPlayer(activeId);
   const reachable = (!isDm && viewingPlayer && isActivePlayer(viewingPlayer.id) && !state.turn.moveUsed && viewingPlayer.roomKey===room.key)
     ? new Set(roomAdj[viewingPlayer.nodeId] || [])
     : new Set();
+
+  const visibleTeammateIds = !isDm && viewingPlayer ? new Set(visibleTeammatesFor(viewingPlayer, room).map(t=>t.id)) : new Set();
+
+  const floorSvg = (room.silhouettes || []).map(shape=>{
+    if(shape.kind === "rect") return `<rect class="silhouette ${shape.cls || ''}" x="${shape.x}" y="${shape.y}" width="${shape.w}" height="${shape.h}" rx="4"></rect>`;
+    if(shape.kind === "ring") return `<circle class="silhouette ${shape.cls || ''}" cx="${shape.x}" cy="${shape.y}" r="${shape.r}"></circle>`;
+    if(shape.kind === "poly") return `<polygon class="silhouette ${shape.cls || ''}" points="${shape.points}"></polygon>`;
+    if(shape.kind === "beam") return `<line class="silhouette ${shape.cls || ''}" x1="${shape.x1}" y1="${shape.y1}" x2="${shape.x2}" y2="${shape.y2}"></line>`;
+    return '';
+  }).join('');
 
   const edgeSvg = room.edges.map(([a,b])=>{
     const na = roomNodes[a], nb = roomNodes[b];
@@ -810,27 +873,30 @@ function renderBoard(room, isDm, viewingPlayer, visibleNodes){
       if(p.id===viewingPlayer.id){
         return `<span class="token self" style="border-color:${p.color}; color:${p.color};">${p.callsign}</span>`;
       }
-      const vis = visibleTeammatesFor(viewingPlayer, room).some(t=>t.id===p.id);
-      if(vis){
+      if(visibleTeammateIds.has(p.id)){
         return `<span class="token visible" style="border-color:${p.color}; color:${p.color};">${p.callsign}</span>`;
       }
       return "";
     }).join("");
+
+    const prompt = reachable.has(node.id) ? '<div class="node-prompt">Move</div>' : '';
 
     return `
       <div class="${classes.join(" ")}" data-node="${node.id}" style="left:${node.x}%; top:${node.y}%;">
         <div class="node-type">${node.type}</div>
         <div class="node-name">${node.name}</div>
         <div class="node-desc">${node.desc}</div>
+        ${prompt}
         <div class="tokens">${tokens}</div>
       </div>
     `;
   }).join("");
 
   return `
-    <div class="board-shell">
+    <div class="board-shell room-${room.key}">
       <div class="board-grid"></div>
-      <svg class="edges" viewBox="0 0 100 100" preserveAspectRatio="none">${edgeSvg}</svg>
+      <svg class="floorplan" viewBox="0 0 100 100" preserveAspectRatio="none">${floorSvg}${edgeSvg}</svg>
+      <div class="room-watermark">${room.title}</div>
       ${nodeHtml}
     </div>
   `;
