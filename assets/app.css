@@ -78,3 +78,5 @@ button { font: inherit; }
 .log { display: grid; gap: 8px; max-height: 520px; overflow: auto; }
 .log-entry { border: 1px solid var(--line); border-radius: 14px; padding: 10px; background: #0c141d; color: #d6e2ef; line-height: 1.6; }
 @media (max-width: 1280px) { .layout { grid-template-columns: 1fr; } }
+
+.primary.ghost{background:#1b2430;color:#dce7f5;border:1px solid #47607a}.primary.danger{background:#55242a;color:#ffe8eb;border:1px solid #a34f5a}.tab.danger{border-color:#7d3942;color:#ffccd3}.tab.danger.active{background:#5a2730;color:#fff;}
